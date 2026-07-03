@@ -78,3 +78,7 @@ the game is won iff
 - the park is empty.
 - each minor foundation contains all 13 cards of its suit in ascending rank order from 1 through 13.
 - the low major foundation and high major foundation together contain all 22 major cards.
+
+## reference
+
+![Fortune's Foundation board reference](references/rules-board-reference.png)
