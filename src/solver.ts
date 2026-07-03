@@ -1,21 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 type Suit = "cups" | "swords" | "stars" | "thorns";
-type CardJson =
-  | { type: "major"; rank: number }
-  | { type: "minor"; suit: Suit; rank: number };
-
-type DealJson = {
-  foundations: {
-    minor: Record<Suit, CardJson[]>;
-    majorLow: CardJson[];
-    majorHigh: CardJson[];
-  };
-  park: CardJson | null;
-  tableau: CardJson[][];
-};
 
 type State = {
   tableau: string[][];
@@ -39,15 +22,24 @@ type SearchNode = {
   priority: number;
 };
 
-const SUITS: Suit[] = ["cups", "swords", "stars", "thorns"];
 const SUIT_CODES: Record<Suit, string> = {
   cups: "C",
   swords: "S",
   stars: "A",
   thorns: "T",
 };
-const DEALS_DIR = new URL("../data/deals", import.meta.url);
-const OUTPUT_DIR = new URL("../solutions", import.meta.url);
+
+export type SolveOptions = {
+  beam?: number;
+  trimEvery?: number;
+  maxVisited?: number;
+};
+
+export type SolveBoardResult = {
+  path: string[] | null;
+  visited: number;
+  ms: number;
+};
 
 class MaxHeap<T> {
   private values: T[] = [];
@@ -113,39 +105,38 @@ class MaxHeap<T> {
   }
 }
 
-function encodeCard(card: CardJson): string {
-  if (card.type === "major") return `M${card.rank}`;
-  return `${SUIT_CODES[card.suit]}${card.rank}`;
-}
-
 function decodeCard(card: string): { kind: "major"; rank: number } | { kind: "minor"; suitIndex: number; rank: number } {
   if (card[0] === "M") return { kind: "major", rank: Number(card.slice(1)) };
-  const suitIndex = ["C", "S", "A", "T"].indexOf(card[0]);
+  const suitIndex = Object.values(SUIT_CODES).indexOf(card[0]);
   if (suitIndex === -1) throw new Error(`Unknown card suit code: ${card}`);
   return { kind: "minor", suitIndex, rank: Number(card.slice(1)) };
 }
 
-function loadDeal(path: string): State {
-  const deal = JSON.parse(readFileSync(path, "utf8")) as DealJson;
-  const minor = SUITS.map((suit) => {
-    const cards = deal.foundations.minor[suit];
-    return cards.length === 0 ? 0 : cards[cards.length - 1].rank;
-  });
-  const state: State = {
-    tableau: deal.tableau.map((column) => column.map(encodeCard)),
-    park: deal.park ? encodeCard(deal.park) : null,
-    minor,
-    majorLow: topMajorRank(deal.foundations.majorLow, -1),
-    majorHigh: topMajorRank(deal.foundations.majorHigh, 22),
-  };
-  return autoMoveFoundations(state);
-}
+function parseBoard(input: string): State {
+  const text = input.trim();
+  const [majorLowText, majorHighText, minorText, parkText, ...columnTexts] = text.split("|");
+  if (!majorLowText || !majorHighText || !minorText || parkText === undefined || columnTexts.length === 0) {
+    throw new Error("Board must use the compact deal text format");
+  }
 
-function topMajorRank(cards: CardJson[], empty: number): number {
-  if (cards.length === 0) return empty;
-  const top = cards[cards.length - 1];
-  if (top.type !== "major") throw new Error("Major foundation contains a minor card");
-  return top.rank;
+  const minor = minorText.split(",").map((rank) => Number(rank));
+  if (minor.length !== 4 || minor.some((rank) => !Number.isInteger(rank))) {
+    throw new Error(`Invalid minor foundation ranks: ${minorText}`);
+  }
+
+  const state: State = {
+    majorLow: Number(majorLowText),
+    majorHigh: Number(majorHighText),
+    minor,
+    park: parkText === "." ? null : parkText,
+    tableau: columnTexts.map((column) => (column === "" ? [] : column.split("."))),
+  };
+
+  if (!Number.isInteger(state.majorLow) || !Number.isInteger(state.majorHigh)) {
+    throw new Error(`Invalid major foundation ranks: ${majorLowText}|${majorHighText}`);
+  }
+
+  return autoMoveFoundations(state);
 }
 
 function cloneState(state: State): State {
@@ -348,7 +339,7 @@ function stateScore(state: State, depth: number): number {
   return score;
 }
 
-function solve(initialState: State, options = { beam: 1000, trimEvery: 10000, maxVisited: 5_000_000 }): {
+function solve(initialState: State, options: Required<SolveOptions>): {
   path: string[] | null;
   visited: number;
 } {
@@ -406,64 +397,19 @@ function replay(initialState: State, path: string[]): State {
   return state;
 }
 
-function solveDeal(path: string): { name: string; path: string[] | null; visited: number; ms: number } {
-  const initial = loadDeal(path);
+export function solveBoard(board: string, options: SolveOptions = {}): SolveBoardResult {
+  const solveOptions = {
+    beam: options.beam ?? 1000,
+    trimEvery: options.trimEvery ?? 10000,
+    maxVisited: options.maxVisited ?? 5_000_000,
+  };
+  const initial = parseBoard(board);
   const started = Date.now();
-  const result = solve(initial);
+  const result = solve(initial, solveOptions);
   const ms = Date.now() - started;
   if (result.path) {
     const final = replay(initial, result.path);
-    if (!isGoalState(final)) throw new Error(`${basename(path)} replay did not reach a goal`);
+    if (!isGoalState(final)) throw new Error("Solved path replay did not reach a goal");
   }
-  return { name: basename(path, ".json"), path: result.path, visited: result.visited, ms };
+  return { path: result.path, visited: result.visited, ms };
 }
-
-function writeSolution(name: string, path: string[]): void {
-  const dir = fileURLToPath(OUTPUT_DIR);
-  if (!existsSync(dir)) {
-    throw new Error(`Missing output directory: ${dir}`);
-  }
-  const output = path.map((move, index) => `Step ${index + 1}: ${move}`).join("\n") + "\n";
-  writeFileSync(join(dir, `${name}.txt`), output);
-}
-
-function writeDealHash(path: string): string {
-  const hash = hashState(loadDeal(path));
-  writeFileSync(path.replace(/\.json$/u, ".hash"), `${hash}\n`);
-  return hash;
-}
-
-function main(): void {
-  const args = process.argv.slice(2);
-  const hashOnly = args[0] === "--hash";
-  const inputArgs = hashOnly ? args.slice(1) : args;
-  const dealPaths =
-    inputArgs.length > 0
-      ? inputArgs
-      : readdirSync(DEALS_DIR)
-          .filter((file) => file.endsWith(".json"))
-          .sort()
-          .map((file) => join(fileURLToPath(DEALS_DIR), file));
-
-  if (hashOnly) {
-    for (const dealPath of dealPaths) {
-      const hash = writeDealHash(dealPath);
-      console.log(`${basename(dealPath)}: ${hash}`);
-    }
-    return;
-  }
-
-  for (const dealPath of dealPaths) {
-    const result = solveDeal(dealPath);
-    if (!result.path) {
-      console.log(`${result.name}: unsolved after ${result.visited.toLocaleString()} states in ${result.ms}ms`);
-      continue;
-    }
-    writeSolution(result.name, result.path);
-    console.log(
-      `${result.name}: solved in ${result.path.length} moves, ${result.visited.toLocaleString()} states, ${result.ms}ms`,
-    );
-  }
-}
-
-main();

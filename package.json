@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "hash": "node src/solver.ts --hash",
-    "solve": "node src/solver.ts"
+    "solve": "node src/cli.ts"
+  },
+  "dependencies": {
+    "typescript": "^6.0.3"
   }
 }
