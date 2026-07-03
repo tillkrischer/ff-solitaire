@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "solve": "node src/cli.ts"
+    "generate": "node src/cli.ts generate",
+    "solve": "node src/cli.ts solve"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
