@@ -5,7 +5,8 @@
   "scripts": {
     "solve": "node src/cli.ts"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@types/node": "^26.1.0",
     "typescript": "^6.0.3"
   }
 }
