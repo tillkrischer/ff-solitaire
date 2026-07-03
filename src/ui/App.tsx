@@ -9,7 +9,6 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   applyManualOnly,
@@ -391,30 +390,60 @@ function PlayableCard(props: {
   hidden?: boolean;
   registerSource?: (key: string, element: HTMLElement | null) => void;
 }): JSX.Element {
-  const id = cardId(props.source.type, props.source.index);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id,
-    disabled: !props.draggable,
-  });
   const key = sourceKey(props.source);
 
+  if (!props.draggable) {
+    return (
+      <CardShell
+        {...props}
+        nodeRef={props.registerSource ? (element) => props.registerSource?.(key, element) : undefined}
+      />
+    );
+  }
+
+  const id = cardId(props.source.type, props.source.index);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+  });
+
+  return (
+    <CardShell
+      {...props}
+      hidden={props.hidden || isDragging}
+      nodeRef={(element) => {
+        setNodeRef(element);
+        if (props.registerSource) props.registerSource(key, element);
+      }}
+      listeners={listeners}
+      attributes={attributes}
+    />
+  );
+}
+
+function CardShell(props: {
+  card: string;
+  index: number;
+  source: SourceLocation;
+  draggable: boolean;
+  horizontal?: boolean;
+  hidden?: boolean;
+  nodeRef?: (element: HTMLElement | null) => void;
+  listeners?: React.HTMLAttributes<HTMLDivElement>;
+  attributes?: React.HTMLAttributes<HTMLDivElement>;
+}): JSX.Element {
   const style = {
-    transform: CSS.Translate.toString(transform),
     top: props.horizontal ? undefined : `calc(${props.index} * var(--stack-offset))`,
-    opacity: props.hidden || isDragging ? 0 : 1,
+    opacity: props.hidden ? 0 : 1,
     zIndex: props.index + 1,
   };
 
   return (
     <div
-      ref={(element) => {
-        setNodeRef(element);
-        if (props.registerSource) props.registerSource(key, element);
-      }}
+      ref={props.nodeRef}
       className={`playable-card ${props.horizontal ? "horizontal-card" : ""} ${props.draggable ? "draggable" : ""}`}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...props.listeners}
+      {...props.attributes}
     >
       <Card card={props.card} />
     </div>
