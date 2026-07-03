@@ -8,13 +8,20 @@
   background: #030303;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  min-width: 1180px;
   background:
     linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
@@ -28,7 +35,7 @@ select {
 }
 
 .game-board {
-  --board-width: min(98vw, 1848px);
+  --board-width: min(calc(100vw - clamp(16px, 2vw, 32px)), 1848px);
   --rail-width: calc(var(--board-width) * 0.07);
   --card-w: calc((var(--board-width) - (2 * var(--rail-width)) - (12 * var(--gap))) / 11);
   --card-h: calc(var(--card-w) * 1.42);
