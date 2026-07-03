@@ -1,0 +1,106 @@
+{
+  "foundations": {
+    "minor": {
+      "cups": [{ "type": "minor", "suit": "cups", "rank": 1 }],
+      "swords": [{ "type": "minor", "suit": "swords", "rank": 1 }],
+      "stars": [{ "type": "minor", "suit": "stars", "rank": 1 }],
+      "thorns": [{ "type": "minor", "suit": "thorns", "rank": 1 }]
+    },
+    "majorLow": [],
+    "majorHigh": []
+  },
+  "park": null,
+  "tableau": [
+    [
+      { "type": "minor", "suit": "stars", "rank": 6 },
+      { "type": "minor", "suit": "stars", "rank": 5 },
+      { "type": "minor", "suit": "thorns", "rank": 12 },
+      { "type": "minor", "suit": "swords", "rank": 4 },
+      { "type": "minor", "suit": "swords", "rank": 6 },
+      { "type": "minor", "suit": "thorns", "rank": 13 },
+      { "type": "minor", "suit": "thorns", "rank": 4 }
+    ],
+    [
+      { "type": "minor", "suit": "thorns", "rank": 7 },
+      { "type": "minor", "suit": "stars", "rank": 2 },
+      { "type": "minor", "suit": "thorns", "rank": 10 },
+      { "type": "minor", "suit": "cups", "rank": 3 },
+      { "type": "minor", "suit": "thorns", "rank": 6 },
+      { "type": "minor", "suit": "cups", "rank": 2 },
+      { "type": "minor", "suit": "stars", "rank": 9 }
+    ],
+    [
+      { "type": "major", "rank": 7 },
+      { "type": "minor", "suit": "thorns", "rank": 9 },
+      { "type": "major", "rank": 6 },
+      { "type": "major", "rank": 10 },
+      { "type": "minor", "suit": "thorns", "rank": 3 },
+      { "type": "minor", "suit": "stars", "rank": 10 },
+      { "type": "major", "rank": 12 }
+    ],
+    [
+      { "type": "minor", "suit": "cups", "rank": 8 },
+      { "type": "major", "rank": 4 },
+      { "type": "minor", "suit": "cups", "rank": 7 },
+      { "type": "minor", "suit": "stars", "rank": 12 },
+      { "type": "minor", "suit": "swords", "rank": 2 },
+      { "type": "minor", "suit": "stars", "rank": 11 },
+      { "type": "major", "rank": 8 }
+    ],
+    [
+      { "type": "major", "rank": 21 },
+      { "type": "major", "rank": 14 },
+      { "type": "major", "rank": 19 },
+      { "type": "minor", "suit": "stars", "rank": 3 },
+      { "type": "minor", "suit": "cups", "rank": 9 },
+      { "type": "major", "rank": 20 },
+      { "type": "major", "rank": 11 }
+    ],
+    [],
+    [
+      { "type": "minor", "suit": "stars", "rank": 7 },
+      { "type": "major", "rank": 0 },
+      { "type": "minor", "suit": "thorns", "rank": 8 },
+      { "type": "minor", "suit": "cups", "rank": 10 },
+      { "type": "minor", "suit": "thorns", "rank": 2 },
+      { "type": "major", "rank": 5 },
+      { "type": "minor", "suit": "cups", "rank": 6 }
+    ],
+    [
+      { "type": "minor", "suit": "swords", "rank": 11 },
+      { "type": "major", "rank": 15 },
+      { "type": "minor", "suit": "stars", "rank": 8 },
+      { "type": "minor", "suit": "swords", "rank": 3 },
+      { "type": "major", "rank": 2 },
+      { "type": "minor", "suit": "cups", "rank": 13 },
+      { "type": "minor", "suit": "stars", "rank": 13 }
+    ],
+    [
+      { "type": "minor", "suit": "swords", "rank": 13 },
+      { "type": "major", "rank": 18 },
+      { "type": "minor", "suit": "cups", "rank": 4 },
+      { "type": "minor", "suit": "swords", "rank": 8 },
+      { "type": "minor", "suit": "cups", "rank": 11 },
+      { "type": "minor", "suit": "swords", "rank": 12 },
+      { "type": "major", "rank": 3 }
+    ],
+    [
+      { "type": "minor", "suit": "thorns", "rank": 5 },
+      { "type": "major", "rank": 16 },
+      { "type": "minor", "suit": "swords", "rank": 10 },
+      { "type": "major", "rank": 17 },
+      { "type": "minor", "suit": "swords", "rank": 9 },
+      { "type": "minor", "suit": "swords", "rank": 7 },
+      { "type": "minor", "suit": "cups", "rank": 12 }
+    ],
+    [
+      { "type": "minor", "suit": "thorns", "rank": 11 },
+      { "type": "major", "rank": 1 },
+      { "type": "minor", "suit": "stars", "rank": 4 },
+      { "type": "minor", "suit": "swords", "rank": 5 },
+      { "type": "minor", "suit": "cups", "rank": 5 },
+      { "type": "major", "rank": 9 },
+      { "type": "major", "rank": 13 }
+    ]
+  ]
+}
