@@ -1,0 +1,9 @@
+{
+  "name": "ff-solitaire",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "hash": "node src/solver.ts --hash",
+    "solve": "node src/solver.ts"
+  }
+}
