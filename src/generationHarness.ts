@@ -1,6 +1,6 @@
 import { validateInitialDeal } from "./dealValidation.ts";
 import { generateDeal, type GenerateDealOptions } from "./generator.ts";
-import { solveBoard, type SolveOptions } from "./solver.ts";
+import { solveBoard, type SolveMetrics, type SolveOptions } from "./solver.ts";
 
 export type GenerationExperimentOptions = GenerateDealOptions & {
   count?: number;
@@ -25,6 +25,7 @@ export type GenerationExperimentResult = {
     pathLength: number | null;
     visited: number;
     ms: number;
+    metrics: SolveMetrics;
   };
   error?: string;
 };
@@ -73,6 +74,7 @@ function runOne(options: GenerationExperimentOptions, index: number): Generation
         pathLength: solved.path?.length ?? null,
         visited: solved.visited,
         ms: solved.ms,
+        metrics: solved.metrics,
       };
     }
 

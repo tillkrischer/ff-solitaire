@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { runGenerationExperiment } from "./generationHarness.ts";
 import { generateDeal, listGenerationStrategies, type GenerateDealOptions } from "./generator.ts";
-import { solveBoard, type SolveOptions } from "./solver.ts";
+import { solveBoard, type SolveMetrics, type SolveOptions } from "./solver.ts";
 
 function main(): void {
   try {
@@ -42,10 +42,12 @@ function solve(args: string[]): void {
 
   if (!result.path) {
     console.log(`${name}: unsolved after ${result.visited.toLocaleString()} states in ${result.ms}ms`);
+    console.log(formatMetrics(result.metrics));
     return;
   }
 
   console.log(`${name}: solved in ${result.path.length} moves, ${result.visited.toLocaleString()} states, ${result.ms}ms`);
+  console.log(formatMetrics(result.metrics));
   console.log(result.path.map((move, index) => `Step ${index + 1}: ${move}`).join("\n"));
 }
 
@@ -157,9 +159,29 @@ function parseGenerateArgs(args: string[]): {
 function summarizeGenerationResult(result: ReturnType<typeof runGenerationExperiment>[number]): string {
   const validation = result.validation.ok ? "valid" : `invalid(${result.validation.errors.length})`;
   const solve = result.solve
-    ? `, solve=${result.solve.solved ? `${result.solve.pathLength} moves` : "unsolved"} visited=${result.solve.visited.toLocaleString()} ms=${result.solve.ms}`
+    ? `, solve=${result.solve.solved ? `${result.solve.pathLength} moves` : "unsolved"} visited=${result.solve.visited.toLocaleString()} ms=${result.solve.ms} ${formatMetrics(result.solve.metrics)}`
     : "";
   return `attempts=${result.attempts} ms=${result.generateMs} ${validation}${solve}`;
+}
+
+function formatMetrics(metrics: SolveMetrics): string {
+  return [
+    `metrics: peakFrontier=${metrics.peakFrontier.toLocaleString()}`,
+    `avgBranching=${formatNumber(metrics.avgBranching)}`,
+    `maxBranching=${metrics.maxBranching}`,
+    `duplicates=${metrics.duplicateSkips.toLocaleString()}`,
+    `trims=${metrics.trimCount}/${metrics.trimmedNodes.toLocaleString()}`,
+    `drought=${metrics.longestFoundationDrought}`,
+    `maxCascade=${metrics.maxCascadeSize}`,
+    `park=${metrics.movesToPark}/${metrics.movesFromPark}`,
+    `blockedMinor=${metrics.parkBlockedMinorOpportunities}`,
+    `emptyAvg=${formatNumber(metrics.avgEmptyColumns)}`,
+    `initialBlockers=${metrics.initialBlockerScore}`,
+  ].join(" ");
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 main();
