@@ -1,4 +1,5 @@
 import { generateConstructiveDeal } from "./generators/constructive.ts";
+import { validateInitialDeal } from "./dealValidation.ts";
 
 export type GenerateDealOptions = {
   seed?: string | number;
@@ -11,6 +12,7 @@ export type GenerateDealResult = {
   seed: string;
   attempts: number;
   strategy: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type GenerationStrategy = {
@@ -21,24 +23,36 @@ export type GenerationStrategy = {
 const STRATEGIES = new Map<string, GenerationStrategy>();
 
 registerStrategy({
-  name: "constructive",
+  name: "one-move-constructive",
   generate: generateConstructiveDeal,
 });
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
-  const strategyName = options.strategy ?? "constructive";
+  const strategyName = options.strategy ?? "one-move-constructive";
   const strategy = STRATEGIES.get(strategyName);
   if (!strategy) {
     throw new Error(`Unknown generation strategy: ${strategyName}`);
   }
-  return strategy.generate({ ...options, strategy: strategyName });
+  const result = strategy.generate({ ...options, strategy: strategyName });
+  const validation = validateInitialDeal(result.board);
+  if (!validation.ok) {
+    throw new Error(`Generation strategy ${strategyName} returned an invalid deal:\n${validation.errors.join("\n")}`);
+  }
+  return {
+    ...result,
+    strategy: strategyName,
+    metadata: {
+      ...result.metadata,
+      validation: "ok",
+    },
+  };
 }
 
 export function listGenerationStrategies(): string[] {
   return [...STRATEGIES.keys()];
 }
 
-function registerStrategy(strategy: GenerationStrategy): void {
+export function registerStrategy(strategy: GenerationStrategy): void {
   if (STRATEGIES.has(strategy.name)) {
     throw new Error(`Duplicate generation strategy: ${strategy.name}`);
   }

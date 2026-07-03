@@ -4,6 +4,7 @@ import {
   autoMoveFoundations,
   canMoveToFoundation,
   cloneState,
+  formatMove,
   hashState,
   isGoalState,
   serializeBoard,
@@ -45,7 +46,11 @@ export function generateConstructiveDeal(options: GenerateDealOptions = {}): Gen
       board: serializeBoard(initial),
       seed,
       attempts: attempt,
-      strategy: STRATEGY_NAME,
+      strategy: options.strategy ?? STRATEGY_NAME,
+      metadata: {
+        proof: "one-move",
+        proofPath: [formatMove(FIRST_MOVE)],
+      },
     };
   }
 

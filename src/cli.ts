@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
+import { runGenerationExperiment } from "./generationHarness.ts";
 import { generateDeal, listGenerationStrategies, type GenerateDealOptions } from "./generator.ts";
-import { solveBoard } from "./solver.ts";
+import { solveBoard, type SolveOptions } from "./solver.ts";
 
 function main(): void {
   try {
@@ -53,31 +54,112 @@ function generate(args: string[]): void {
     console.log(listGenerationStrategies().join("\n"));
     return;
   }
-  const result = generateDeal(parseGenerateArgs(args));
-  console.log(result.board);
+  const options = parseGenerateArgs(args);
+  if (options.experiment.count === 1 && !options.experiment.jsonl && !options.experiment.solve) {
+    const result = generateDeal(options.generate);
+    console.log(result.board);
+    return;
+  }
+
+  const results = runGenerationExperiment({
+    ...options.generate,
+    count: options.experiment.count,
+    solve: options.experiment.solve,
+    solveOptions: options.experiment.solveOptions,
+  });
+
+  if (options.experiment.jsonl) {
+    for (const result of results) {
+      console.log(JSON.stringify(result));
+    }
+    return;
+  }
+
+  for (const result of results) {
+    const status = result.error ? `error: ${result.error}` : summarizeGenerationResult(result);
+    console.log(`${result.index}. ${result.strategy} seed=${result.seed}: ${status}`);
+    if (options.experiment.printBoards && result.board) console.log(result.board);
+  }
 }
 
-function parseGenerateArgs(args: string[]): GenerateDealOptions {
-  const options: GenerateDealOptions = {};
+function parseGenerateArgs(args: string[]): {
+  generate: GenerateDealOptions;
+  experiment: {
+    count: number;
+    jsonl: boolean;
+    printBoards: boolean;
+    solve: boolean;
+    solveOptions: {
+      beam?: number;
+      trimEvery?: number;
+      maxVisited?: number;
+    };
+  };
+} {
+  const generateOptions: GenerateDealOptions = {};
+  const solveOptions: SolveOptions = {};
+  const experimentOptions = {
+    count: 1,
+    jsonl: false,
+    printBoards: false,
+    solve: false,
+    solveOptions,
+  };
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (arg === "--seed") {
       const value = args[++index];
       if (value === undefined) throw new Error("--seed requires a value");
-      options.seed = value;
+      generateOptions.seed = value;
     } else if (arg === "--max-attempts") {
       const value = args[++index];
       if (value === undefined) throw new Error("--max-attempts requires a value");
-      options.maxAttempts = Number(value);
+      generateOptions.maxAttempts = Number(value);
     } else if (arg === "--strategy") {
       const value = args[++index];
       if (value === undefined) throw new Error("--strategy requires a value");
-      options.strategy = value;
+      generateOptions.strategy = value;
+    } else if (arg === "--count") {
+      const value = args[++index];
+      if (value === undefined) throw new Error("--count requires a value");
+      experimentOptions.count = Number(value);
+    } else if (arg === "--jsonl") {
+      experimentOptions.jsonl = true;
+    } else if (arg === "--print-boards") {
+      experimentOptions.printBoards = true;
+    } else if (arg === "--solve") {
+      experimentOptions.solve = true;
+    } else if (arg === "--solve-max-visited") {
+      const value = args[++index];
+      if (value === undefined) throw new Error("--solve-max-visited requires a value");
+      experimentOptions.solve = true;
+      experimentOptions.solveOptions.maxVisited = Number(value);
+    } else if (arg === "--solve-beam") {
+      const value = args[++index];
+      if (value === undefined) throw new Error("--solve-beam requires a value");
+      experimentOptions.solve = true;
+      experimentOptions.solveOptions.beam = Number(value);
+    } else if (arg === "--solve-trim-every") {
+      const value = args[++index];
+      if (value === undefined) throw new Error("--solve-trim-every requires a value");
+      experimentOptions.solve = true;
+      experimentOptions.solveOptions.trimEvery = Number(value);
     } else {
       throw new Error(`Unknown generate argument: ${arg}`);
     }
   }
-  return options;
+  return {
+    generate: generateOptions,
+    experiment: experimentOptions,
+  };
+}
+
+function summarizeGenerationResult(result: ReturnType<typeof runGenerationExperiment>[number]): string {
+  const validation = result.validation.ok ? "valid" : `invalid(${result.validation.errors.length})`;
+  const solve = result.solve
+    ? `, solve=${result.solve.solved ? `${result.solve.pathLength} moves` : "unsolved"} visited=${result.solve.visited.toLocaleString()} ms=${result.solve.ms}`
+    : "";
+  return `attempts=${result.attempts} ms=${result.generateMs} ${validation}${solve}`;
 }
 
 main();
