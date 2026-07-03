@@ -7,6 +7,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -42,8 +43,26 @@ type FlyingCard = {
   durationMs: number;
 };
 
+type CardDimensions = {
+  width: number;
+  height: number;
+};
+
+type DragOverlayDimensions = {
+  source: CardDimensions;
+  vertical: CardDimensions;
+  horizontal: CardDimensions;
+};
+
+type RelativePoint = {
+  x: number;
+  y: number;
+};
+
 const AUTO_MOVE_MS = 360;
 const REDUCED_MOTION_MS = 30;
+const PARK_CARD_WIDTH_RATIO = 1.2;
+const PARK_CARD_HEIGHT_RATIO = 0.45;
 const SUITS = [
   { name: "Cups", code: "C", symbol: "◆", color: "cups" },
   { name: "Swords", code: "S", symbol: "†", color: "swords" },
@@ -83,8 +102,12 @@ export function App(): JSX.Element {
   const [state, setState] = useState<State>(() => parseBoard(deal.board));
   const [activeSource, setActiveSource] = useState<SourceLocation | null>(null);
   const [activeCard, setActiveCard] = useState<string | null>(null);
+  const [activeCardDimensions, setActiveCardDimensions] = useState<DragOverlayDimensions | null>(null);
+  const [activePointerRatio, setActivePointerRatio] = useState<RelativePoint>({ x: 0.5, y: 0.5 });
+  const [isDragAboveTableau, setIsDragAboveTableau] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [flyingCard, setFlyingCard] = useState<FlyingCard | null>(null);
+  const tableauFieldRef = useRef<HTMLElement | null>(null);
   const sourceRefs = useRef(new Map<string, HTMLElement>());
   const foundationRefs = useRef(new Map<FoundationTarget, HTMLElement>());
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -114,6 +137,9 @@ export function App(): JSX.Element {
     setState(parseBoard(nextDeal.board));
     setActiveSource(null);
     setActiveCard(null);
+    setActiveCardDimensions(null);
+    setActivePointerRatio({ x: 0.5, y: 0.5 });
+    setIsDragAboveTableau(false);
     setFlyingCard(null);
     setIsResolving(false);
   }
@@ -126,6 +152,79 @@ export function App(): JSX.Element {
     if (!card) return;
     setActiveSource(source);
     setActiveCard(card);
+    setActiveCardDimensions(getDragOverlayDimensions(source));
+    setActivePointerRatio(getPointerRatio(source, event.activatorEvent));
+    setIsDragAboveTableau(isSourceAboveTableau(source));
+  }
+
+  function handleDragMove(event: DragMoveEvent): void {
+    const source = activeSource;
+    const tableauElement = tableauFieldRef.current;
+    if (!source || !tableauElement) return;
+
+    const sourceElement = sourceRefs.current.get(sourceKey(source));
+    if (!sourceElement) return;
+
+    const draggedTop = sourceElement.getBoundingClientRect().top + event.delta.y;
+    const tableauTop = tableauElement.getBoundingClientRect().top;
+    setIsDragAboveTableau(draggedTop < tableauTop);
+  }
+
+  function isSourceAboveTableau(source: SourceLocation): boolean {
+    const sourceElement = sourceRefs.current.get(sourceKey(source));
+    const tableauElement = tableauFieldRef.current;
+    if (!sourceElement || !tableauElement) return false;
+    return sourceElement.getBoundingClientRect().top < tableauElement.getBoundingClientRect().top;
+  }
+
+  function getDragOverlayDimensions(source: SourceLocation): DragOverlayDimensions | null {
+    const sourceElement = sourceRefs.current.get(sourceKey(source));
+    if (!sourceElement) return null;
+
+    const rect = sourceElement.getBoundingClientRect();
+    const sourceDimensions = {
+      width: rect.width,
+      height: rect.height,
+    };
+
+    if (source.type === "park") {
+      return {
+        source: sourceDimensions,
+        vertical: {
+          width: rect.width / PARK_CARD_WIDTH_RATIO,
+          height: rect.height / PARK_CARD_HEIGHT_RATIO,
+        },
+        horizontal: {
+          width: rect.width,
+          height: rect.height,
+        },
+      };
+    }
+
+    return {
+      source: sourceDimensions,
+      vertical: {
+        width: rect.width,
+        height: rect.height,
+      },
+      horizontal: {
+        width: rect.width * PARK_CARD_WIDTH_RATIO,
+        height: rect.height * PARK_CARD_HEIGHT_RATIO,
+      },
+    };
+  }
+
+  function getPointerRatio(source: SourceLocation, event: Event): RelativePoint {
+    const sourceElement = sourceRefs.current.get(sourceKey(source));
+    if (!sourceElement || !("clientX" in event) || !("clientY" in event)) {
+      return { x: 0.5, y: 0.5 };
+    }
+
+    const rect = sourceElement.getBoundingClientRect();
+    return {
+      x: clampRatio((Number(event.clientX) - rect.left) / rect.width),
+      y: clampRatio((Number(event.clientY) - rect.top) / rect.height),
+    };
   }
 
   async function handleDragEnd(event: DragEndEvent): Promise<void> {
@@ -133,6 +232,9 @@ export function App(): JSX.Element {
     const overId = event.over?.id ? String(event.over.id) : null;
     setActiveSource(null);
     setActiveCard(null);
+    setActiveCardDimensions(null);
+    setActivePointerRatio({ x: 0.5, y: 0.5 });
+    setIsDragAboveTableau(false);
     if (!source || !overId) return;
     const destination = parseDropId(overId);
     if (!destination) return;
@@ -183,10 +285,14 @@ export function App(): JSX.Element {
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onDragCancel={() => {
         setActiveSource(null);
         setActiveCard(null);
+        setActiveCardDimensions(null);
+        setActivePointerRatio({ x: 0.5, y: 0.5 });
+        setIsDragAboveTableau(false);
       }}
     >
       <main className="min-h-screen overflow-hidden bg-black p-[clamp(8px,1vw,16px)] text-amber-50">
@@ -251,7 +357,7 @@ export function App(): JSX.Element {
             </section>
           </section>
 
-          <section className="tableau-field" aria-label="Tableau">
+          <section ref={tableauFieldRef} className="tableau-field" aria-label="Tableau">
             {state.tableau.map((column, index) => (
               <TableauColumn
                 key={index}
@@ -267,7 +373,16 @@ export function App(): JSX.Element {
         </div>
         {flyingCard ? <FlyingCardLayer flyingCard={flyingCard} /> : null}
       </main>
-      <DragOverlay dropAnimation={null}>{activeCard ? <Card card={activeCard} floating /> : null}</DragOverlay>
+      <DragOverlay dropAnimation={null}>
+        {activeCard ? (
+          <OverlayCard
+            card={activeCard}
+            horizontal={isDragAboveTableau}
+            dimensions={activeCardDimensions}
+            pointerRatio={activePointerRatio}
+          />
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -482,6 +597,35 @@ function Card({ card, floating = false }: { card: string; floating?: boolean }):
   );
 }
 
+function OverlayCard({
+  card,
+  horizontal,
+  dimensions,
+  pointerRatio,
+}: {
+  card: string;
+  horizontal: boolean;
+  dimensions: DragOverlayDimensions | null;
+  pointerRatio: RelativePoint;
+}): JSX.Element {
+  const activeDimensions = horizontal ? dimensions?.horizontal : dimensions?.vertical;
+  const style = activeDimensions && dimensions
+    ? ({
+        width: `${activeDimensions.width}px`,
+        height: `${activeDimensions.height}px`,
+        transform: `translate(${dimensions.source.width * pointerRatio.x - activeDimensions.width * pointerRatio.x}px, ${
+          dimensions.source.height * pointerRatio.y - activeDimensions.height * pointerRatio.y
+        }px)`,
+      } satisfies React.CSSProperties)
+    : undefined;
+
+  return (
+    <div className={`drag-overlay-card ${horizontal ? "horizontal-card" : ""}`} style={style}>
+      <Card card={card} floating />
+    </div>
+  );
+}
+
 function MajorFoundation(props: {
   label: string;
   topRank: number;
@@ -618,6 +762,10 @@ function rankText(rank: number): string {
   if (rank === 12) return "Q";
   if (rank === 13) return "K";
   return String(rank);
+}
+
+function clampRatio(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }
 
 function prefersReducedMotion(): boolean {
