@@ -8,7 +8,7 @@ type State = {
   majorHigh: number;
 };
 
-type LocationType = "queue" | "park";
+type LocationType = "column" | "park";
 type Move = {
   fromType: LocationType;
   fromIndex: number;
@@ -223,11 +223,11 @@ function getValidMoves(state: State): Move[] {
   const moves: Move[] = [];
   const sources: Move[] = [];
   if (state.park) {
-    sources.push({ fromType: "park", fromIndex: 0, toType: "queue", toIndex: -1 });
+    sources.push({ fromType: "park", fromIndex: 0, toType: "column", toIndex: -1 });
   }
   for (let i = 0; i < state.tableau.length; i++) {
     if (state.tableau[i].length > 0) {
-      sources.push({ fromType: "queue", fromIndex: i, toType: "queue", toIndex: -1 });
+      sources.push({ fromType: "column", fromIndex: i, toType: "column", toIndex: -1 });
     }
   }
 
@@ -235,16 +235,16 @@ function getValidMoves(state: State): Move[] {
     const card = getSourceCard(state, source.fromType, source.fromIndex);
     if (!card) continue;
 
-    if (source.fromType === "queue" && state.park === null) {
+    if (source.fromType === "column" && state.park === null) {
       moves.push({ ...source, toType: "park", toIndex: 0 });
     }
 
     for (let toIndex = 0; toIndex < state.tableau.length; toIndex++) {
-      if (source.fromType === "queue" && source.fromIndex === toIndex) continue;
+      if (source.fromType === "column" && source.fromIndex === toIndex) continue;
       const targetColumn = state.tableau[toIndex];
       const targetCard = targetColumn[targetColumn.length - 1];
       if (!targetCard || canStackOn(card, targetCard)) {
-        moves.push({ ...source, toType: "queue", toIndex });
+        moves.push({ ...source, toType: "column", toIndex });
       }
     }
   }
@@ -275,13 +275,13 @@ function moveScore(state: State, move: Move): number {
   const card = getSourceCard(state, move.fromType, move.fromIndex);
   if (!card) return -1000;
   let score = 0;
-  const fromColumn = move.fromType === "queue" ? state.tableau[move.fromIndex] : null;
-  const toColumn = move.toType === "queue" ? state.tableau[move.toIndex] : null;
-  if (move.toType === "queue" && toColumn?.length === 0) score += 15;
+  const fromColumn = move.fromType === "column" ? state.tableau[move.fromIndex] : null;
+  const toColumn = move.toType === "column" ? state.tableau[move.toIndex] : null;
+  if (move.toType === "column" && toColumn?.length === 0) score += 15;
   if (move.fromType === "park") score += 20;
   if (move.toType === "park") score -= 8;
   if (fromColumn?.length === 1) score += 18;
-  if (move.toType === "queue" && toColumn && toColumn.length > 0) score += 8;
+  if (move.toType === "column" && toColumn && toColumn.length > 0) score += 8;
   if (canMoveToFoundation(applyManualOnly(state, move), card, move.toType === "park")) score += 30;
   return score;
 }
