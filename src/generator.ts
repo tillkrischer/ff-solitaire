@@ -1,4 +1,9 @@
-import { generateConstructiveDeal } from "./generators/constructive.ts";
+import {
+  generateConstructiveDeal,
+  generateMultiGateCascadeDeal,
+  generateParkLockedMinorDeal,
+  generateScriptedTableauDeal,
+} from "./generators/constructive.ts";
 import { validateInitialDeal } from "./dealValidation.ts";
 
 export type GenerateDealOptions = {
@@ -25,6 +30,21 @@ const STRATEGIES = new Map<string, GenerationStrategy>();
 registerStrategy({
   name: "one-move-constructive",
   generate: generateConstructiveDeal,
+});
+
+registerStrategy({
+  name: "multi-gate-cascade",
+  generate: generateMultiGateCascadeDeal,
+});
+
+registerStrategy({
+  name: "scripted-tableau-rearrangement",
+  generate: generateScriptedTableauDeal,
+});
+
+registerStrategy({
+  name: "park-locked-minor-cascade",
+  generate: generateParkLockedMinorDeal,
 });
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
