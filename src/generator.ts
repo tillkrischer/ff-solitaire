@@ -2,6 +2,7 @@ import {
   multiGateCascadeStrategy,
   oneMoveConstructiveStrategy,
   parkLockedMinorCascadeStrategy,
+  reverseSolveWalkStrategy,
   scriptedTableauRearrangementStrategy,
 } from "./generators/index.ts";
 import { validateInitialDeal } from "./dealValidation.ts";
@@ -31,6 +32,7 @@ registerStrategy(oneMoveConstructiveStrategy);
 registerStrategy(multiGateCascadeStrategy);
 registerStrategy(scriptedTableauRearrangementStrategy);
 registerStrategy(parkLockedMinorCascadeStrategy);
+registerStrategy(reverseSolveWalkStrategy);
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
   const strategyName = options.strategy ?? "one-move-constructive";
