@@ -4,7 +4,6 @@ import {
   autoMoveFoundations,
   canMoveToFoundation,
   cloneState,
-  formatMove,
   hashState,
   isGoalState,
   serializeBoard,
@@ -21,7 +20,6 @@ const FIRST_MOVE = {
   toType: "column" as const,
   toIndex: 5,
 };
-const FIRST_MOVE_TEXT = formatMove(FIRST_MOVE);
 const COVER_INDEX = 34;
 const COLUMN_SIZES = [7, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7];
 const HIDDEN_COLUMN_SIZES_AFTER_FIRST_MOVE = [6, 7, 7, 7, 7, 0, 7, 7, 7, 7, 7];
@@ -47,7 +45,6 @@ export function generateConstructiveDeal(options: GenerateDealOptions = {}): Gen
       board: serializeBoard(initial),
       seed,
       attempts: attempt,
-      firstMove: FIRST_MOVE_TEXT,
       strategy: STRATEGY_NAME,
     };
   }

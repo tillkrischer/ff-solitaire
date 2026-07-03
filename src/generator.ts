@@ -10,7 +10,6 @@ export type GenerateDealResult = {
   board: string;
   seed: string;
   attempts: number;
-  firstMove: string;
   strategy: string;
 };
 
