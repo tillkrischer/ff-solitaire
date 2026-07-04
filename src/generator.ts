@@ -4,6 +4,7 @@ import {
   orderedFiveColumnReverseShuffleStrategy,
   parkLockedMinorCascadeStrategy,
   randomReferenceSearchStrategy,
+  referencePoolStrategy,
   inlineTestDealStrategy,
   reverseFoundationDealStrategy,
   reverseSolveWalkStrategy,
@@ -30,8 +31,11 @@ export type GenerationStrategy = {
   generate: (options: GenerateDealOptions) => GenerateDealResult;
 };
 
+export const DEFAULT_GENERATION_STRATEGY = "reference-pool";
+
 const STRATEGIES = new Map<string, GenerationStrategy>();
 
+registerStrategy(referencePoolStrategy);
 registerStrategy(oneMoveConstructiveStrategy);
 registerStrategy(multiGateCascadeStrategy);
 registerStrategy(scriptedTableauRearrangementStrategy);
@@ -43,7 +47,7 @@ registerStrategy(randomReferenceSearchStrategy);
 registerStrategy(inlineTestDealStrategy);
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
-  const strategyName = options.strategy ?? "one-move-constructive";
+  const strategyName = options.strategy ?? DEFAULT_GENERATION_STRATEGY;
   const strategy = STRATEGIES.get(strategyName);
   if (!strategy) {
     throw new Error(`Unknown generation strategy: ${strategyName}`);

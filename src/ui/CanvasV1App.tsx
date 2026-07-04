@@ -11,7 +11,7 @@ import {
   type Move,
   type State,
 } from "../game.ts";
-import { generateDeal, listGenerationStrategies, type GenerateDealResult } from "../generator.ts";
+import { DEFAULT_GENERATION_STRATEGY, generateDeal, listGenerationStrategies, type GenerateDealResult } from "../generator.ts";
 import { SolitaireCanvas } from "./SolitaireCanvas.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import {
@@ -77,10 +77,15 @@ function writeLocalStorage(key: string, value: string): void {
   }
 }
 
-function getInitialStrategy(strategies: string[]): string {
-  const fallback = "inline-test-deal";
+function getInitialStrategy(strategies: string[], showStrategySelector: boolean): string {
+  const fallback = DEFAULT_GENERATION_STRATEGY;
+  if (!showStrategySelector) return fallback;
   const storedStrategy = readLocalStorage(SELECTED_STRATEGY_STORAGE_KEY);
   return storedStrategy && strategies.includes(storedStrategy) ? storedStrategy : fallback;
+}
+
+function shouldShowStrategySelector(): boolean {
+  return import.meta.env.DEV || import.meta.env.VITE_SHOW_STRATEGY_SELECTOR === "true";
 }
 
 function getInitialGameMode(): GameMode {
@@ -94,7 +99,8 @@ function getInitialSoundEnabled(): boolean {
 
 export function CanvasV1App(): JSX.Element {
   const strategies = useMemo(() => listGenerationStrategies(), []);
-  const initialStrategy = useMemo(() => getInitialStrategy(strategies), [strategies]);
+  const showStrategySelector = shouldShowStrategySelector();
+  const initialStrategy = useMemo(() => getInitialStrategy(strategies, showStrategySelector), [strategies, showStrategySelector]);
   const [selectedStrategy, setSelectedStrategy] = useState(initialStrategy);
   const [deal, setDeal] = useState<GenerateDealResult>(() => generateDeal({ strategy: initialStrategy }));
   const [state, setState] = useState<State>(() => parseBoard(deal.board));
@@ -134,8 +140,9 @@ export function CanvasV1App(): JSX.Element {
   }, [soundEnabled]);
 
   useEffect(() => {
+    if (!showStrategySelector) return;
     writeLocalStorage(SELECTED_STRATEGY_STORAGE_KEY, selectedStrategy);
-  }, [selectedStrategy]);
+  }, [selectedStrategy, showStrategySelector]);
 
   useEffect(() => {
     writeLocalStorage(GAME_MODE_STORAGE_KEY, gameMode);
@@ -467,6 +474,7 @@ export function CanvasV1App(): JSX.Element {
         soundEnabled={soundEnabled}
         isResolving={isResolving}
         canUndo={Boolean(previousState)}
+        showStrategySelector={showStrategySelector}
         onNewDeal={startNewDeal}
         onSelectedStrategyChange={setSelectedStrategy}
         onUndo={undoMove}
