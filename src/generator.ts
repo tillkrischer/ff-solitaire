@@ -1,6 +1,7 @@
 import {
   multiGateCascadeStrategy,
   oneMoveConstructiveStrategy,
+  orderedFiveColumnReverseShuffleStrategy,
   parkLockedMinorCascadeStrategy,
   inlineTestDealStrategy,
   reverseFoundationDealStrategy,
@@ -34,6 +35,7 @@ registerStrategy(oneMoveConstructiveStrategy);
 registerStrategy(multiGateCascadeStrategy);
 registerStrategy(scriptedTableauRearrangementStrategy);
 registerStrategy(parkLockedMinorCascadeStrategy);
+registerStrategy(orderedFiveColumnReverseShuffleStrategy);
 // registerStrategy(reverseSolveWalkStrategy);
 registerStrategy(reverseFoundationDealStrategy);
 registerStrategy(inlineTestDealStrategy);
