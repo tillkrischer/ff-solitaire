@@ -84,6 +84,7 @@ const BOARD_WIDTH = 2868;
 const BOARD_HEIGHT = 1790;
 const AUTO_MOVE_MS = 360;
 const REDUCED_MOTION_MS = 30;
+const CARD_MOVE_SOUND_INTERVAL_MS = 55;
 const MAJOR_FOUNDATION_BACK_OFFSET = 36;
 const MAJOR_FOUNDATION_MAX_BACKS = 7;
 const SUITS = [
@@ -137,6 +138,7 @@ export function CanvasV1App(): JSX.Element {
   const flyingCardRef = useRef<FlyingCard | null>(flyingCard);
   const flyingStackRef = useRef<FlyingStack | null>(flyingStack);
   const geometryRef = useRef<BoardGeometry>(makeGeometry());
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     stateRef.current = state;
@@ -201,6 +203,13 @@ export function CanvasV1App(): JSX.Element {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      void audioContextRef.current?.close();
+      audioContextRef.current = null;
+    };
   }, []);
 
   function startNewDeal(): void {
@@ -291,6 +300,7 @@ export function CanvasV1App(): JSX.Element {
     const manualState = applyManualOnly(beforeManualState, move);
     stateRef.current = manualState;
     setState(manualState);
+    playCardMoveSound();
     setDragState(null);
     setIsResolving(true);
     const stackState =
@@ -307,6 +317,7 @@ export function CanvasV1App(): JSX.Element {
     const next = applyStackMove(manualState, stackMove);
     stateRef.current = next;
     setState(next);
+    playCardMoveSound(stackMove.cards.length);
     setFlyingStackFrame(null);
     return next;
   }
@@ -321,8 +332,30 @@ export function CanvasV1App(): JSX.Element {
       current = applySingleAutoMove(current, nextMove);
       stateRef.current = current;
       setState(current);
+      playCardMoveSound();
       lastSource = nextMove.from;
       if (!findNextAutoMove(current)) setFlyingCardFrame(null);
+    }
+  }
+
+  function playCardMoveSound(count = 1): void {
+    const audio = getAudioContext();
+    if (!audio) return;
+    if (audio.state === "suspended") void audio.resume();
+
+    const now = audio.currentTime;
+    for (let index = 0; index < count; index++) {
+      playCardTick(audio, now + (index * CARD_MOVE_SOUND_INTERVAL_MS) / 1000, index);
+    }
+  }
+
+  function getAudioContext(): AudioContext | null {
+    if (audioContextRef.current) return audioContextRef.current;
+    try {
+      audioContextRef.current = new AudioContext();
+      return audioContextRef.current;
+    } catch {
+      return null;
     }
   }
 
@@ -498,6 +531,43 @@ export function CanvasV1App(): JSX.Element {
       </div>
     </main>
   );
+}
+
+function playCardTick(audio: AudioContext, startTime: number, sequenceIndex: number): void {
+  const duration = 0.09;
+  const gain = audio.createGain();
+  const filter = audio.createBiquadFilter();
+  const oscillator = audio.createOscillator();
+  const noise = audio.createBufferSource();
+  const buffer = audio.createBuffer(1, Math.ceil(audio.sampleRate * duration), audio.sampleRate);
+  const samples = buffer.getChannelData(0);
+
+  for (let index = 0; index < samples.length; index++) {
+    const fade = 1 - index / samples.length;
+    samples[index] = (Math.random() * 2 - 1) * fade * 0.35;
+  }
+
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(950 + sequenceIndex * 35, startTime);
+  filter.Q.setValueAtTime(1.6, startTime);
+  gain.gain.setValueAtTime(0.0001, startTime);
+  gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+  oscillator.type = "triangle";
+  oscillator.frequency.setValueAtTime(220 + sequenceIndex * 14, startTime);
+  oscillator.frequency.exponentialRampToValueAtTime(150 + sequenceIndex * 10, startTime + duration);
+  noise.buffer = buffer;
+
+  oscillator.connect(gain);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audio.destination);
+
+  oscillator.start(startTime);
+  noise.start(startTime);
+  oscillator.stop(startTime + duration);
+  noise.stop(startTime + duration);
 }
 
 function makeGeometry(): BoardGeometry {
