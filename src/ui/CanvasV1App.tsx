@@ -276,9 +276,6 @@ export function CanvasV1App(): JSX.Element {
   return (
     <main className="canvas-v1-page">
       <section className="canvas-controls" aria-label="Canvas controls">
-        <a href="/" className="version-link">
-          Versions
-        </a>
         <label>
           <span>Deal strategy</span>
           <select value={selectedStrategy} disabled={isResolving} onChange={(event) => setSelectedStrategy(event.target.value)}>
