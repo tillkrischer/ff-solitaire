@@ -200,7 +200,12 @@ export function CanvasV1App(): JSX.Element {
     if (!drag) return;
     event.currentTarget.releasePointerCapture(event.pointerId);
     const point = toBoardPoint(event);
-    const destination = findDropAtPoint(geometryRef.current, point, drag.validMoves);
+    const currentDrag = {
+      ...drag,
+      pointer: point,
+      horizontal: point.y - drag.pointerOffset.y < geometryRef.current.tableau.y - 3 * geometryRef.current.card.height / 4,
+    };
+    const destination = findDropByOverlap(stateRef.current, geometryRef.current, currentDrag);
     const source = drag.source;
     const move = destination
       ? drag.validMoves.find((candidate) => candidate.toType === destination.type && candidate.toIndex === destination.index)
@@ -448,21 +453,7 @@ function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, sta
 }
 
 function drawDragCard(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, drag: DragState): void {
-  const rect = drag.horizontal
-    ? {
-        x: drag.pointer.x - drag.pointerOffset.x,
-        y: drag.pointer.y - drag.pointerOffset.y,
-        width: geometry.card.height,
-        height: geometry.card.width,
-        rotated: true,
-      }
-    : {
-        x: drag.pointer.x - drag.pointerOffset.x,
-        y: drag.pointer.y - drag.pointerOffset.y,
-        width: geometry.card.width,
-        height: geometry.card.height,
-      };
-  drawCard(ctx, drag.card, rect, true);
+  drawCard(ctx, drag.card, getDragCardRect(geometry, drag), true);
 }
 
 function drawFlyingCard(ctx: CanvasRenderingContext2D, flying: FlyingCard, cardSize: { width: number; height: number }): void {
@@ -585,16 +576,6 @@ function findSourceAtPoint(state: State, geometry: BoardGeometry, point: { x: nu
   return null;
 }
 
-function findDropAtPoint(geometry: BoardGeometry, point: { x: number; y: number }, validMoves: Move[]): DropLocation | null {
-  const validKeys = new Set(validMoves.map((move) => dropKey({ type: move.toType, index: move.toIndex } as DropLocation)));
-  if (validKeys.has(dropKey({ type: "park", index: 0 })) && contains(geometry.park, point)) return { type: "park", index: 0 };
-  for (let index = 0; index < geometry.columns.length; index++) {
-    const column = geometry.columns[index];
-    if (validKeys.has(dropKey({ type: "column", index })) && contains(column, point)) return { type: "column", index };
-  }
-  return null;
-}
-
 function getColumnCardRect(geometry: BoardGeometry, columnIndex: number, cardIndex: number): VisualRect {
   const column = geometry.columns[columnIndex];
   return {
@@ -603,6 +584,59 @@ function getColumnCardRect(geometry: BoardGeometry, columnIndex: number, cardInd
     width: geometry.card.width,
     height: geometry.card.height,
   };
+}
+
+function getEmptyColumnDropRect(geometry: BoardGeometry, columnIndex: number): VisualRect {
+  const column = geometry.columns[columnIndex];
+  return {
+    x: column.x,
+    y: column.y,
+    width: geometry.card.width,
+    height: geometry.card.height,
+  };
+}
+
+function getDragCardRect(geometry: BoardGeometry, drag: DragState): VisualRect {
+  if (drag.horizontal) {
+    return {
+      x: drag.pointer.x - drag.pointerOffset.x,
+      y: drag.pointer.y - drag.pointerOffset.y,
+      width: geometry.card.height,
+      height: geometry.card.width,
+      rotated: true,
+    };
+  }
+  return {
+    x: drag.pointer.x - drag.pointerOffset.x,
+    y: drag.pointer.y - drag.pointerOffset.y,
+    width: geometry.card.width,
+    height: geometry.card.height,
+  };
+}
+
+function findDropByOverlap(state: State, geometry: BoardGeometry, drag: DragState): DropLocation | null {
+  const dragRect = getDragCardRect(geometry, drag);
+  let closest: { location: DropLocation; distance: number } | null = null;
+
+  for (const move of drag.validMoves) {
+    const location = { type: move.toType, index: move.toIndex } as DropLocation;
+    const targetRect = getDropTargetRect(state, geometry, location);
+    if (!targetRect || !intersects(dragRect, targetRect)) continue;
+
+    const distance = centerDistanceSquared(dragRect, targetRect);
+    if (!closest || distance < closest.distance) closest = { location, distance };
+  }
+
+  return closest?.location ?? null;
+}
+
+function getDropTargetRect(state: State, geometry: BoardGeometry, location: DropLocation): VisualRect | null {
+  if (location.type === "park") return geometry.park;
+
+  const column = state.tableau[location.index];
+  if (!column) return null;
+  if (column.length === 0) return getEmptyColumnDropRect(geometry, location.index);
+  return getColumnCardRect(geometry, location.index, column.length - 1);
 }
 
 function getSourceRect(state: State, geometry: BoardGeometry, source: SourceLocation): VisualRect | null {
@@ -672,6 +706,18 @@ function getCardAtSource(state: State, source: SourceLocation): string | null {
 
 function contains(rect: Rect, point: { x: number; y: number }): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+function intersects(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+function centerDistanceSquared(a: Rect, b: Rect): number {
+  const ax = a.x + a.width / 2;
+  const ay = a.y + a.height / 2;
+  const bx = b.x + b.width / 2;
+  const by = b.y + b.height / 2;
+  return (ax - bx) ** 2 + (ay - by) ** 2;
 }
 
 function drawRoundedRect(
