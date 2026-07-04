@@ -47,7 +47,7 @@ select {
 
 .canvas-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 360px) auto minmax(250px, auto) minmax(260px, 1fr);
+  grid-template-columns: minmax(220px, 360px) auto auto minmax(250px, auto) minmax(260px, 1fr);
   align-items: end;
   gap: 12px;
   max-width: 1600px;

@@ -126,14 +126,30 @@ export function CanvasV1App(): JSX.Element {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [flyingCard, setFlyingCard] = useState<FlyingCard | null>(null);
   const [flyingStack, setFlyingStack] = useState<FlyingStack | null>(null);
+  const [previousState, setPreviousState] = useState<State | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef(state);
+  const previousStateRef = useRef<State | null>(previousState);
+  const isResolvingRef = useRef(isResolving);
+  const dragRef = useRef<DragState | null>(drag);
   const geometryRef = useRef<BoardGeometry>(makeGeometry());
 
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  useEffect(() => {
+    previousStateRef.current = previousState;
+  }, [previousState]);
+
+  useEffect(() => {
+    isResolvingRef.current = isResolving;
+  }, [isResolving]);
+
+  useEffect(() => {
+    dragRef.current = drag;
+  }, [drag]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -172,14 +188,45 @@ export function CanvasV1App(): JSX.Element {
     };
   }, [draw]);
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent): void {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
+        if (isResolvingRef.current || dragRef.current || !previousStateRef.current) return;
+        event.preventDefault();
+        undoMove();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   function startNewDeal(): void {
     const nextDeal = generateDeal({ strategy: selectedStrategy, seed: Date.now() });
+    const nextState = parseBoard(nextDeal.board);
     setDeal(nextDeal);
-    setState(parseBoard(nextDeal.board));
+    stateRef.current = nextState;
+    setState(nextState);
+    previousStateRef.current = null;
+    setPreviousState(null);
     setDrag(null);
     setFlyingCard(null);
     setFlyingStack(null);
     setIsResolving(false);
+  }
+
+  function undoMove(): void {
+    const snapshot = previousStateRef.current;
+    if (isResolvingRef.current || !snapshot) return;
+
+    const restored = cloneState(snapshot);
+    stateRef.current = restored;
+    previousStateRef.current = null;
+    setState(restored);
+    setPreviousState(null);
+    setDrag(null);
+    setFlyingCard(null);
+    setFlyingStack(null);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>): void {
@@ -233,6 +280,9 @@ export function CanvasV1App(): JSX.Element {
     if (!move) return;
 
     const beforeManualState = stateRef.current;
+    const undoSnapshot = cloneState(beforeManualState);
+    previousStateRef.current = undoSnapshot;
+    setPreviousState(undoSnapshot);
     const manualState = applyManualOnly(beforeManualState, move);
     stateRef.current = manualState;
     setState(manualState);
@@ -353,6 +403,9 @@ export function CanvasV1App(): JSX.Element {
         </label>
         <button type="button" disabled={isResolving} onClick={startNewDeal}>
           New Deal
+        </button>
+        <button type="button" disabled={isResolving || !previousState} onClick={undoMove}>
+          Undo
         </button>
         <fieldset className="mode-toggle" disabled={isResolving}>
           <legend>Mode</legend>
