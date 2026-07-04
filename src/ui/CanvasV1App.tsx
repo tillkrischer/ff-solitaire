@@ -170,7 +170,7 @@ export function CanvasV1App(): JSX.Element {
     if (!ctx) return;
     ctx.setTransform(scale * deviceRatio, 0, 0, scale * deviceRatio, 0, 0);
     geometryRef.current = makeGeometry();
-    renderBoard(ctx, geometryRef.current, stateRef.current, drag, flyingCard, flyingStack, isResolving);
+    renderBoard(ctx, geometryRef.current, stateRef.current, drag, flyingCard, flyingStack);
   }, [drag, flyingCard, flyingStack, isResolving]);
 
   useEffect(() => {
@@ -505,7 +505,6 @@ function renderBoard(
   drag: DragState | null,
   flyingCard: FlyingCard | null,
   flyingStack: FlyingStack | null,
-  isResolving: boolean,
 ): void {
   drawBackground(ctx, geometry);
   const hiddenKey = drag ? sourceKey(drag.source) : flyingCard ? sourceKey(flyingCard.hiddenSource) : null;
@@ -519,7 +518,6 @@ function renderBoard(
   if (flyingStack) drawFlyingStack(ctx, flyingStack, geometry.card);
   if (flyingCard) drawFlyingCard(ctx, flyingCard, geometry.card);
   if (drag) drawDragCard(ctx, geometry, drag);
-  if (isResolving) drawResolvingVeil(ctx);
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, geometry: BoardGeometry): void {
@@ -739,11 +737,6 @@ function drawHighlight(ctx: CanvasRenderingContext2D, rect: Rect): void {
   ctx.fillRect(rect.x - 8, rect.y - 8, rect.width + 16, rect.height + 16);
   ctx.strokeRect(rect.x - 8, rect.y - 8, rect.width + 16, rect.height + 16);
   ctx.restore();
-}
-
-function drawResolvingVeil(ctx: CanvasRenderingContext2D): void {
-  ctx.fillStyle = "rgba(0,0,0,0.08)";
-  ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
 }
 
 function findSourceAtPoint(state: State, geometry: BoardGeometry, point: { x: number; y: number }): { location: SourceLocation; rect: VisualRect } | null {

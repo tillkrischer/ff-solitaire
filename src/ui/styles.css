@@ -90,7 +90,6 @@ select {
 .canvas-controls select:disabled,
 .mode-toggle:disabled {
   cursor: wait;
-  opacity: 0.65;
 }
 
 .mode-toggle {
@@ -322,7 +321,6 @@ select {
 .controls button:disabled,
 .controls select:disabled {
   cursor: wait;
-  opacity: 0.65;
 }
 
 .controls dl {
