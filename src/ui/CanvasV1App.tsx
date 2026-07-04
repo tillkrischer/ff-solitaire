@@ -120,6 +120,28 @@ const MAJOR_NAMES = [
 const SELECTED_STRATEGY_STORAGE_KEY = "ff-solitaire:selected-strategy";
 const GAME_MODE_STORAGE_KEY = "ff-solitaire:game-mode";
 const SOUND_ENABLED_STORAGE_KEY = "ff-solitaire:sound-enabled";
+const PAGE_BACKGROUND = {
+  backgroundImage:
+    "linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)",
+  backgroundSize: "24px 24px",
+};
+const controlLabelClass = "grid gap-1 text-xs uppercase text-[#f2c389]";
+const controlInputClass =
+  "min-h-9 rounded-md border-2 border-[#c18443] bg-[#3b0b14] text-[#ffd99b] disabled:cursor-wait";
+const controlButtonClass =
+  "inline-grid min-h-9 cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
+const fieldsetClass =
+  "m-0 flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
+const fieldsetLegendClass = "px-1 text-xs uppercase text-[#f2c389]";
+const toggleLabelBaseClass =
+  "relative inline-grid min-h-7 cursor-pointer place-items-center rounded px-2.5 text-xs font-extrabold text-[#ffd99b]";
+const toggleLabelActiveClass = "bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] text-[#ffe4b5]";
+const toggleLabelDisabledClass = "cursor-wait";
+const visuallyHiddenInputClass = "pointer-events-none absolute opacity-0";
+
+function classNames(...classes: Array<string | false | null | undefined>): string {
+  return classes.filter(Boolean).join(" ");
+}
 
 function readLocalStorage(key: string): string | null {
   try {
@@ -516,11 +538,22 @@ export function CanvasV1App(): JSX.Element {
   }
 
   return (
-    <main className="canvas-v1-page">
-      <section className="canvas-controls" aria-label="Canvas controls">
-        <label>
+    <main
+      className="grid min-h-screen grid-rows-[auto_1fr] gap-2.5 overflow-hidden bg-[#050505] p-2.5 font-ui text-[#ffe4b5] [color-scheme:dark]"
+      style={PAGE_BACKGROUND}
+    >
+      <section
+        className="mx-auto grid w-full max-w-[1600px] grid-cols-1 items-end gap-3 rounded-lg border border-[rgba(237,175,92,0.45)] bg-[#21110d] px-3 py-2.5 min-[761px]:grid-cols-[minmax(220px,360px)_auto_auto_minmax(250px,auto)_minmax(92px,auto)_minmax(260px,1fr)]"
+        aria-label="Canvas controls"
+      >
+        <label className={controlLabelClass}>
           <span>Deal strategy</span>
-          <select value={selectedStrategy} disabled={isResolving} onChange={(event) => setSelectedStrategy(event.target.value)}>
+          <select
+            className={controlInputClass}
+            value={selectedStrategy}
+            disabled={isResolving}
+            onChange={(event) => setSelectedStrategy(event.target.value)}
+          >
             {strategies.map((strategy) => (
               <option key={strategy} value={strategy}>
                 {strategy}
@@ -528,16 +561,23 @@ export function CanvasV1App(): JSX.Element {
             ))}
           </select>
         </label>
-        <button type="button" disabled={isResolving} onClick={startNewDeal}>
+        <button className={controlButtonClass} type="button" disabled={isResolving} onClick={startNewDeal}>
           New Deal
         </button>
-        <button type="button" disabled={isResolving || !previousState} onClick={undoMove}>
+        <button className={controlButtonClass} type="button" disabled={isResolving || !previousState} onClick={undoMove}>
           Undo
         </button>
-        <fieldset className="mode-toggle" disabled={isResolving}>
-          <legend>Mode</legend>
-          <label>
+        <fieldset className={fieldsetClass} disabled={isResolving}>
+          <legend className={fieldsetLegendClass}>Mode</legend>
+          <label
+            className={classNames(
+              toggleLabelBaseClass,
+              gameMode === "single-card" && toggleLabelActiveClass,
+              isResolving && toggleLabelDisabledClass,
+            )}
+          >
             <input
+              className={visuallyHiddenInputClass}
               type="radio"
               name="game-mode"
               value="single-card"
@@ -546,8 +586,15 @@ export function CanvasV1App(): JSX.Element {
             />
             <span>Single card</span>
           </label>
-          <label>
+          <label
+            className={classNames(
+              toggleLabelBaseClass,
+              gameMode === "entire-stack" && toggleLabelActiveClass,
+              isResolving && toggleLabelDisabledClass,
+            )}
+          >
             <input
+              className={visuallyHiddenInputClass}
               type="radio"
               name="game-mode"
               value="entire-stack"
@@ -557,10 +604,11 @@ export function CanvasV1App(): JSX.Element {
             <span>Entire stack</span>
           </label>
         </fieldset>
-        <fieldset className="mode-toggle sound-toggle">
-          <legend>Sound</legend>
-          <label>
+        <fieldset className={classNames(fieldsetClass, "min-w-[92px]")}>
+          <legend className={fieldsetLegendClass}>Sound</legend>
+          <label className={classNames(toggleLabelBaseClass, soundEnabled && toggleLabelActiveClass)}>
             <input
+              className={visuallyHiddenInputClass}
               type="checkbox"
               checked={soundEnabled}
               onChange={(event) => setSoundEnabled(event.target.checked)}
@@ -568,21 +616,23 @@ export function CanvasV1App(): JSX.Element {
             <span>{soundEnabled ? "On" : "Off"}</span>
           </label>
         </fieldset>
-        <dl>
-          <div>
-            <dt>Seed</dt>
-            <dd>{deal.seed}</dd>
+        <dl className="m-0 grid grid-cols-3 gap-2.5 text-xs">
+          <div className="min-w-0">
+            <dt className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[rgba(255,224,168,0.6)]">Seed</dt>
+            <dd className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[#ffe4b5]">{deal.seed}</dd>
           </div>
-          <div>
-            <dt>Status</dt>
-            <dd>{isGoalState(state) ? "Won" : isResolving ? "Resolving" : "Playing"}</dd>
+          <div className="min-w-0">
+            <dt className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[rgba(255,224,168,0.6)]">Status</dt>
+            <dd className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[#ffe4b5]">
+              {isGoalState(state) ? "Won" : isResolving ? "Resolving" : "Playing"}
+            </dd>
           </div>
         </dl>
       </section>
-      <div ref={wrapRef} className="canvas-board-wrap">
+      <div ref={wrapRef} className="grid min-h-0 w-full items-start justify-items-center">
         <canvas
           ref={canvasRef}
-          className="canvas-board"
+          className="block max-w-full touch-none border border-[rgba(237,175,92,0.5)] bg-[#21110d] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
           aria-label="Canvas solitaire board"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
