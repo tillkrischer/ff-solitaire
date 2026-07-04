@@ -3,6 +3,7 @@ import {
   oneMoveConstructiveStrategy,
   orderedFiveColumnReverseShuffleStrategy,
   parkLockedMinorCascadeStrategy,
+  randomReferenceSearchStrategy,
   inlineTestDealStrategy,
   reverseFoundationDealStrategy,
   reverseSolveWalkStrategy,
@@ -38,6 +39,7 @@ registerStrategy(parkLockedMinorCascadeStrategy);
 registerStrategy(orderedFiveColumnReverseShuffleStrategy);
 // registerStrategy(reverseSolveWalkStrategy);
 registerStrategy(reverseFoundationDealStrategy);
+registerStrategy(randomReferenceSearchStrategy);
 registerStrategy(inlineTestDealStrategy);
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
