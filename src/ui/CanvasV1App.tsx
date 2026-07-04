@@ -410,7 +410,8 @@ function drawMajorFoundationStack(
   const visibleBacks = majorFoundationVisibleBacks(count);
   for (let i = 0; i < visibleBacks; i++) {
     const x = direction === "low" ? rect.x + i * MAJOR_FOUNDATION_BACK_OFFSET : rect.x - i * MAJOR_FOUNDATION_BACK_OFFSET;
-    drawCardBack(ctx, { ...rect, x }, cardSize);
+    const visibleRank = direction === "low" ? rank - visibleBacks + i : rank + visibleBacks - i;
+    drawCard(ctx, `M${visibleRank}`, { ...rect, x, width: cardSize.width, height: cardSize.height });
   }
   const topX = getMajorFoundationTopX(rect, direction, count);
   drawCard(ctx, `M${rank}`, { ...rect, x: topX });
@@ -532,16 +533,6 @@ function drawCardFace(ctx: CanvasRenderingContext2D, card: string, x: number, y:
   ctx.font = `700 ${Math.round(width * 0.075)}px Georgia`;
   ctx.textAlign = "center";
   ctx.fillText(isMajor ? MAJOR_NAMES[decoded.rank] ?? "Major" : `${rankText(decoded.rank)} ${SUITS[decoded.suitIndex].name}`, x + width / 2, y + height - 21);
-  ctx.textAlign = "start";
-}
-
-function drawCardBack(ctx: CanvasRenderingContext2D, rect: VisualRect, cardSize: { width: number; height: number }): void {
-  drawRoundedRect(ctx, rect.x, rect.y, cardSize.width, cardSize.height, 4, "#231016", "#d8944f", 5);
-  drawRoundedRect(ctx, rect.x + 22, rect.y + 24, cardSize.width - 44, cardSize.height - 48, 2, "#4c1018", "#f0b568", 4);
-  ctx.fillStyle = "#f0b568";
-  ctx.font = "700 74px Georgia";
-  ctx.textAlign = "center";
-  ctx.fillText("✦", rect.x + cardSize.width / 2, rect.y + cardSize.height / 2 + 24);
   ctx.textAlign = "start";
 }
 
