@@ -12,11 +12,30 @@ import {
   type State,
 } from "../game.ts";
 import { generateDeal, listGenerationStrategies, type GenerateDealResult } from "../generator.ts";
-
-type SourceLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
-type DropLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
-type FoundationTarget = "major-low" | "major-high" | `minor-${number}`;
-type GameMode = "single-card" | "entire-stack";
+import { SolitaireCanvas } from "./SolitaireCanvas.tsx";
+import { Toolbar } from "./Toolbar.tsx";
+import {
+  BOARD_HEIGHT,
+  BOARD_WIDTH,
+  getColumnCardRect,
+  getDragCardRect,
+  getEmptyColumnDropRect,
+  getMajorFoundationTopX,
+  makeGeometry,
+} from "./boardGeometry.ts";
+import { renderBoard } from "./boardDrawing.ts";
+import type {
+  BoardGeometry,
+  DragState,
+  DropLocation,
+  FlyingCard,
+  FlyingStack,
+  FoundationTarget,
+  GameMode,
+  SourceLocation,
+  VisualRect,
+} from "./types.ts";
+import { centerDistanceSquared, contains, intersects } from "./utils.ts";
 
 type AutoMove = {
   card: string;
@@ -30,92 +49,9 @@ type StackMove = {
   cards: string[];
 };
 
-type Rect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type VisualRect = Rect & {
-  rotated?: boolean;
-};
-
-type DragState = {
-  source: SourceLocation;
-  card: string;
-  pointerOffset: { x: number; y: number };
-  pointer: { x: number; y: number };
-  horizontal: boolean;
-  validMoves: Move[];
-};
-
-type FlyingCard = {
-  card: string;
-  from: VisualRect;
-  to: VisualRect;
-  hiddenSource: SourceLocation;
-  progress: number;
-};
-
-type FlyingStack = {
-  cards: string[];
-  from: VisualRect[];
-  to: VisualRect[];
-  hiddenSource: { columnIndex: number; startIndex: number; count: number };
-  progress: number;
-};
-
-type BoardGeometry = {
-  board: Rect;
-  topBand: Rect;
-  tableau: Rect;
-  card: { width: number; height: number };
-  stackOffset: number;
-  columns: Rect[];
-  minorFoundations: VisualRect[];
-  park: VisualRect;
-  majorLow: VisualRect;
-  majorHigh: VisualRect;
-};
-
-const BOARD_WIDTH = 2868;
-const BOARD_HEIGHT = 1790;
 const AUTO_MOVE_MS = 360;
 const REDUCED_MOTION_MS = 30;
 const CARD_MOVE_SOUND_INTERVAL_MS = 55;
-const MAJOR_FOUNDATION_BACK_OFFSET = 36;
-const MAJOR_FOUNDATION_MAX_BACKS = 7;
-const SUITS = [
-  { name: "Cups", code: "C", symbol: "◆", color: "#a83e2f" },
-  { name: "Swords", code: "S", symbol: "†", color: "#24798c" },
-  { name: "Stars", code: "A", symbol: "✦", color: "#9a6d22" },
-  { name: "Thorns", code: "T", symbol: "♣", color: "#3f8138" },
-] as const;
-const MAJOR_NAMES = [
-  "The Fool",
-  "The Magician",
-  "The Priestess",
-  "The Empress",
-  "The Emperor",
-  "The Hierophant",
-  "The Lovers",
-  "The Chariot",
-  "Strength",
-  "The Hermit",
-  "Fortune",
-  "Justice",
-  "The Hanged One",
-  "Death",
-  "Temperance",
-  "The Devil",
-  "The Tower",
-  "The Star",
-  "The Moon",
-  "The Sun",
-  "Judgement",
-  "The World",
-];
 const SELECTED_STRATEGY_STORAGE_KEY = "ff-solitaire:selected-strategy";
 const GAME_MODE_STORAGE_KEY = "ff-solitaire:game-mode";
 const SOUND_ENABLED_STORAGE_KEY = "ff-solitaire:sound-enabled";
@@ -124,25 +60,6 @@ const PAGE_BACKGROUND = {
     "linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)",
   backgroundSize: "24px 24px",
 };
-const controlInputClass =
-  "h-[38px] rounded-md border-2 border-[#c18443] bg-[#3b0b14] text-[#ffd99b] disabled:cursor-wait";
-const compactSelectClass = classNames(controlInputClass, "w-[min(100%,240px)] min-w-0 px-2 font-extrabold");
-const controlButtonClass =
-  "inline-grid h-[38px] w-[180px] shrink-0 cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
-const fieldsetClass =
-  "relative m-0 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
-const modeFieldsetClass = classNames(fieldsetClass, "w-max");
-const soundFieldsetClass = classNames(fieldsetClass, "w-max");
-const fieldsetLegendClass = "absolute -top-3 left-2 bg-[#21110d] px-1 text-xs uppercase text-[#f2c389]";
-const toggleLabelBaseClass =
-  "relative inline-grid min-h-7 cursor-pointer place-items-center rounded px-2.5 text-xs font-extrabold text-[#ffd99b]";
-const toggleLabelActiveClass = "bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] text-[#ffe4b5]";
-const toggleLabelDisabledClass = "cursor-wait";
-const visuallyHiddenInputClass = "pointer-events-none absolute opacity-0";
-
-function classNames(...classes: Array<string | false | null | undefined>): string {
-  return classes.filter(Boolean).join(" ");
-}
 
 function readLocalStorage(key: string): string | null {
   try {
@@ -543,107 +460,27 @@ export function CanvasV1App(): JSX.Element {
       className="grid min-h-screen grid-rows-[auto_1fr] gap-2.5 overflow-hidden bg-[#050505] p-2.5 font-ui text-[#ffe4b5] [color-scheme:dark]"
       style={PAGE_BACKGROUND}
     >
-      <section
-        className="mx-auto flex w-full max-w-[1600px] flex-nowrap items-end justify-start gap-3 overflow-x-auto px-3 py-2.5 min-[761px]:justify-center"
-        aria-label="Canvas controls"
-      >
-        <button className={controlButtonClass} type="button" disabled={isResolving} onClick={startNewDeal}>
-          New Deal
-        </button>
-        <div className="w-[240px] shrink-0">
-          <select
-            aria-label="Deal strategy"
-            className={compactSelectClass}
-            value={selectedStrategy}
-            disabled={isResolving}
-            onChange={(event) => setSelectedStrategy(event.target.value)}
-          >
-            <optgroup label="Deal strategies">
-              {strategies.map((strategy) => (
-                <option key={strategy} value={strategy}>
-                  {strategy}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
-        <button className={controlButtonClass} type="button" disabled={isResolving || !previousState} onClick={undoMove}>
-          Undo
-        </button>
-        <fieldset className={modeFieldsetClass} disabled={isResolving}>
-          <legend className={fieldsetLegendClass}>Mode</legend>
-          <label
-            className={classNames(
-              toggleLabelBaseClass,
-              gameMode === "single-card" && toggleLabelActiveClass,
-              isResolving && toggleLabelDisabledClass,
-            )}
-          >
-            <input
-              className={visuallyHiddenInputClass}
-              type="radio"
-              name="game-mode"
-              value="single-card"
-              checked={gameMode === "single-card"}
-              onChange={() => setGameMode("single-card")}
-            />
-            <span>Single card</span>
-          </label>
-          <label
-            className={classNames(
-              toggleLabelBaseClass,
-              gameMode === "entire-stack" && toggleLabelActiveClass,
-              isResolving && toggleLabelDisabledClass,
-            )}
-          >
-            <input
-              className={visuallyHiddenInputClass}
-              type="radio"
-              name="game-mode"
-              value="entire-stack"
-              checked={gameMode === "entire-stack"}
-              onChange={() => setGameMode("entire-stack")}
-            />
-            <span>Entire stack</span>
-          </label>
-        </fieldset>
-        <fieldset className={soundFieldsetClass}>
-          <legend className={fieldsetLegendClass}>Sound</legend>
-          <label className={classNames(toggleLabelBaseClass, soundEnabled && toggleLabelActiveClass)}>
-            <input
-              className={visuallyHiddenInputClass}
-              type="radio"
-              name="sound-enabled"
-              value="on"
-              checked={soundEnabled}
-              onChange={() => setSoundEnabled(true)}
-            />
-            <span>On</span>
-          </label>
-          <label className={classNames(toggleLabelBaseClass, !soundEnabled && toggleLabelActiveClass)}>
-            <input
-              className={visuallyHiddenInputClass}
-              type="radio"
-              name="sound-enabled"
-              value="off"
-              checked={!soundEnabled}
-              onChange={() => setSoundEnabled(false)}
-            />
-            <span>Off</span>
-          </label>
-        </fieldset>
-      </section>
-      <div ref={wrapRef} className="grid min-h-0 w-full items-start justify-items-center">
-        <canvas
-          ref={canvasRef}
-          className="block max-w-full touch-none border border-[rgba(237,175,92,0.5)] bg-[#21110d] shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
-          aria-label="Canvas solitaire board"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={() => setDragState(null)}
-        />
-      </div>
+      <Toolbar
+        strategies={strategies}
+        selectedStrategy={selectedStrategy}
+        gameMode={gameMode}
+        soundEnabled={soundEnabled}
+        isResolving={isResolving}
+        canUndo={Boolean(previousState)}
+        onNewDeal={startNewDeal}
+        onSelectedStrategyChange={setSelectedStrategy}
+        onUndo={undoMove}
+        onGameModeChange={setGameMode}
+        onSoundEnabledChange={setSoundEnabled}
+      />
+      <SolitaireCanvas
+        wrapRef={wrapRef}
+        canvasRef={canvasRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => setDragState(null)}
+      />
     </main>
   );
 }
@@ -685,278 +522,6 @@ function playCardTick(audio: AudioContext, startTime: number, sequenceIndex: num
   noise.stop(startTime + duration);
 }
 
-function makeGeometry(): BoardGeometry {
-  const card = { width: 198, height: 340 };
-  const columnGap = 44;
-  const startX = 126;
-  const tableauY = 555;
-  const columns = Array.from({ length: 11 }, (_, index) => ({
-    x: startX + index * (card.width + columnGap),
-    y: tableauY,
-    width: card.width,
-    height: 1000,
-  }));
-  const minorFoundations = [1900, 2128, 2356, 2584].map((x) => ({
-    x,
-    y: 110,
-    width: card.width,
-    height: card.height,
-  }));
-  return {
-    board: { x: 0, y: 0, width: BOARD_WIDTH, height: BOARD_HEIGHT },
-    topBand: { x: 0, y: 0, width: BOARD_WIDTH, height: 520 },
-    tableau: { x: 0, y: tableauY, width: BOARD_WIDTH, height: 1090 },
-    card,
-    stackOffset: 48,
-    columns,
-    minorFoundations,
-    park: { x: 2117, y: 180, width: card.height, height: card.width, rotated: true },
-    majorLow: { x: 130, y: 110, width: card.width, height: card.height },
-    majorHigh: { x: 820, y: 110, width: card.width, height: card.height },
-  };
-}
-
-function renderBoard(
-  ctx: CanvasRenderingContext2D,
-  geometry: BoardGeometry,
-  state: State,
-  drag: DragState | null,
-  flyingCard: FlyingCard | null,
-  flyingStack: FlyingStack | null,
-): void {
-  drawBackground(ctx, geometry);
-  const hiddenKey = drag ? sourceKey(drag.source) : flyingCard ? sourceKey(flyingCard.hiddenSource) : null;
-  const validDrops = new Set(drag?.validMoves.map((move) => dropKey({ type: move.toType, index: move.toIndex } as DropLocation)) ?? []);
-  drawMajorFoundationStack(ctx, geometry.majorLow, "low", state.majorLow, geometry.card);
-  drawMajorFoundationStack(ctx, geometry.majorHigh, "high", state.majorHigh, geometry.card);
-  drawMinorFoundations(ctx, geometry, state);
-  drawPark(ctx, geometry, state, hiddenKey, validDrops);
-  drawTableau(ctx, geometry, state, hiddenKey, flyingStack?.hiddenSource ?? null, validDrops);
-
-  if (flyingStack) drawFlyingStack(ctx, flyingStack, geometry.card);
-  if (flyingCard) drawFlyingCard(ctx, flyingCard, geometry.card);
-  if (drag) drawDragCard(ctx, geometry, drag);
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D, geometry: BoardGeometry): void {
-  const separatorY = geometry.topBand.y + geometry.topBand.height;
-  ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
-  ctx.fillStyle = "#20110d";
-  ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
-  ctx.fillStyle = "#6f211a";
-  ctx.fillRect(0, geometry.topBand.y, BOARD_WIDTH, geometry.topBand.height);
-  ctx.fillStyle = "#2a1a12";
-  ctx.fillRect(0, separatorY, BOARD_WIDTH, BOARD_HEIGHT - separatorY);
-  ctx.fillStyle = "rgba(195,110,52,0.55)";
-  for (let x = 80; x < BOARD_WIDTH; x += 70) {
-    for (let y = separatorY + 28; y < BOARD_HEIGHT - 120; y += 70) {
-      ctx.fillText("✦", x, y);
-    }
-  }
-  ctx.strokeStyle = "#a8632c";
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.moveTo(0, separatorY);
-  ctx.lineTo(BOARD_WIDTH, separatorY);
-  ctx.stroke();
-  ctx.fillStyle = "#bd7030";
-  for (let x = 115; x < BOARD_WIDTH - 80; x += 72) drawTriangle(ctx, x, geometry.topBand.y + 28, 26);
-}
-
-function drawMajorFoundationStack(
-  ctx: CanvasRenderingContext2D,
-  rect: VisualRect,
-  direction: "low" | "high",
-  rank: number,
-  cardSize: { width: number; height: number },
-): void {
-  const isEmpty = direction === "low" ? rank < 0 : rank > 21;
-  if (isEmpty) {
-    drawEmptySlot(ctx, rect);
-    return;
-  }
-  const count = direction === "low" ? rank + 1 : 22 - rank;
-  const visibleBacks = majorFoundationVisibleBacks(count);
-  for (let i = 0; i < visibleBacks; i++) {
-    const x = direction === "low" ? rect.x + i * MAJOR_FOUNDATION_BACK_OFFSET : rect.x - i * MAJOR_FOUNDATION_BACK_OFFSET;
-    const visibleRank = direction === "low" ? rank - visibleBacks + i : rank + visibleBacks - i;
-    drawCard(ctx, `M${visibleRank}`, { ...rect, x, width: cardSize.width, height: cardSize.height });
-  }
-  const topX = getMajorFoundationTopX(rect, direction, count);
-  drawCard(ctx, `M${rank}`, { ...rect, x: topX });
-}
-
-function drawMinorFoundations(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state: State): void {
-  geometry.minorFoundations.forEach((rect, index) => {
-    drawCard(ctx, `${SUITS[index].code}${state.minor[index]}`, rect);
-  });
-}
-
-function drawPark(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state: State, hiddenKey: string | null, validDrops: Set<string>): void {
-  const isValidDrop = validDrops.has(dropKey({ type: "park", index: 0 }));
-  if (isValidDrop) {
-    drawHighlight(ctx, geometry.park);
-    if (!state.park) drawEmptySlot(ctx, geometry.park);
-  }
-  if (state.park && hiddenKey !== sourceKey({ type: "park", index: 0 })) drawCard(ctx, state.park, geometry.park);
-}
-
-function drawTableau(
-  ctx: CanvasRenderingContext2D,
-  geometry: BoardGeometry,
-  state: State,
-  hiddenKey: string | null,
-  hiddenStack: FlyingStack["hiddenSource"] | null,
-  validDrops: Set<string>,
-): void {
-  state.tableau.forEach((column, index) => {
-    const columnRect = geometry.columns[index];
-    const drop = dropKey({ type: "column", index });
-    const isValidDrop = validDrops.has(drop);
-    drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, { fill: "#2a1a12" });
-    if (column.length === 0) {
-      if (isValidDrop) drawHighlight(ctx, { ...columnRect, height: geometry.card.height });
-      return;
-    }
-    column.forEach((card, cardIndex) => {
-      const topCardHidden = cardIndex === column.length - 1 && hiddenKey === sourceKey({ type: "column", index });
-      const stackCardHidden =
-        hiddenStack &&
-        hiddenStack.columnIndex === index &&
-        cardIndex >= hiddenStack.startIndex &&
-        cardIndex < hiddenStack.startIndex + hiddenStack.count;
-      if (!topCardHidden && !stackCardHidden) drawCard(ctx, card, getColumnCardRect(geometry, index, cardIndex));
-    });
-    if (isValidDrop) drawHighlight(ctx, getColumnCardRect(geometry, index, column.length - 1));
-  });
-}
-
-function drawDragCard(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, drag: DragState): void {
-  drawCard(ctx, drag.card, getDragCardRect(geometry, drag), true);
-}
-
-function drawFlyingCard(ctx: CanvasRenderingContext2D, flying: FlyingCard, cardSize: { width: number; height: number }): void {
-  const x = lerp(flying.from.x, flying.to.x, flying.progress);
-  const y = lerp(flying.from.y, flying.to.y, flying.progress);
-  const rotated = flying.to.rotated && flying.progress > 0.5;
-  drawCard(ctx, flying.card, {
-    x,
-    y,
-    width: rotated ? cardSize.height : cardSize.width,
-    height: rotated ? cardSize.width : cardSize.height,
-    rotated,
-  }, true);
-}
-
-function drawFlyingStack(ctx: CanvasRenderingContext2D, flying: FlyingStack, cardSize: { width: number; height: number }): void {
-  flying.cards.forEach((card, index) => {
-    const from = flying.from[index];
-    const to = flying.to[index];
-    const x = lerp(from.x, to.x, flying.progress);
-    const y = lerp(from.y, to.y, flying.progress);
-    drawCard(ctx, card, { x, y, width: cardSize.width, height: cardSize.height }, true);
-  });
-}
-
-function drawCard(ctx: CanvasRenderingContext2D, card: string, rect: VisualRect, floating = false): void {
-  ctx.save();
-  if (rect.rotated) {
-    ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    ctx.rotate(Math.PI / 2);
-    drawCardFace(ctx, card, -rect.height / 2, -rect.width / 2, rect.height, rect.width, floating);
-  } else {
-    drawCardFace(ctx, card, rect.x, rect.y, rect.width, rect.height, floating);
-  }
-  ctx.restore();
-}
-
-function drawCardFace(ctx: CanvasRenderingContext2D, card: string, x: number, y: number, width: number, height: number, floating: boolean): void {
-  const decoded = decodeCard(card);
-  const isMajor = decoded.kind === "major";
-  const color = isMajor ? "#d99a4f" : SUITS[decoded.suitIndex].color;
-  if (floating) {
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 22;
-    ctx.shadowOffsetY = 18;
-  }
-  drawRoundedRect(ctx, x, y, width, height, 4, isMajor ? "#1f1b1c" : "#f6e2b7", color, 5);
-  ctx.shadowColor = "transparent";
-  ctx.fillStyle = color;
-  const cornerBaseline = y + Math.round(width * 0.19);
-  const cornerInset = Math.round(width * 0.09);
-  ctx.font = `700 ${Math.round(width * 0.19)}px Georgia`;
-  ctx.fillText(isMajor ? String(decoded.rank) : rankText(decoded.rank), x + cornerInset, cornerBaseline);
-  if (!isMajor) {
-    const suit = SUITS[decoded.suitIndex];
-    ctx.fillText(suit.symbol, x + width - Math.round(width * 0.26), cornerBaseline);
-    ctx.globalAlpha = 0.78;
-    ctx.font = `${Math.round(width * 0.18)}px Georgia`;
-    const count = Math.min(decoded.rank, 10);
-    for (let i = 0; i < count; i++) {
-      const col = i % 2;
-      const row = Math.floor(i / 2);
-      ctx.fillText(suit.symbol, x + width * (0.34 + col * 0.32), y + height * 0.28 + row * 38);
-    }
-    ctx.globalAlpha = 1;
-  } else {
-    ctx.fillStyle = "#2e2725";
-    ctx.beginPath();
-    ctx.arc(x + width / 2, y + height / 2, width * 0.32, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = color;
-    ctx.font = `800 ${Math.round(width * 0.34)}px Georgia`;
-    ctx.textAlign = "center";
-    ctx.fillText(String(decoded.rank), x + width / 2, y + height / 2 + 38);
-    ctx.textAlign = "start";
-  }
-  ctx.fillStyle = "rgba(37,21,18,0.92)";
-  ctx.fillRect(x + 8, y + height - 46, width - 16, 36);
-  ctx.fillStyle = "#ffd88d";
-  ctx.font = `700 ${Math.round(width * 0.075)}px Georgia`;
-  ctx.textAlign = "center";
-  ctx.fillText(isMajor ? MAJOR_NAMES[decoded.rank] ?? "Major" : `${rankText(decoded.rank)} ${SUITS[decoded.suitIndex].name}`, x + width / 2, y + height - 21);
-  ctx.textAlign = "start";
-}
-
-function drawEmptySlot(
-  ctx: CanvasRenderingContext2D,
-  rect: VisualRect,
-  style: { fill?: string; stroke?: string } = {},
-): void {
-  ctx.save();
-  if (rect.rotated) {
-    ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    ctx.rotate(Math.PI / 2);
-    drawSlotFace(ctx, -rect.height / 2, -rect.width / 2, rect.height, rect.width, style);
-  } else {
-    drawSlotFace(ctx, rect.x, rect.y, rect.width, rect.height, style);
-  }
-  ctx.restore();
-}
-
-function drawSlotFace(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  style: { fill?: string; stroke?: string },
-): void {
-  ctx.setLineDash([14, 14]);
-  drawRoundedRect(ctx, x, y, width, height, 4, style.fill ?? "rgba(40,20,18,0.36)", style.stroke ?? "rgba(220,151,78,0.8)", 4);
-  ctx.setLineDash([]);
-}
-
-function drawHighlight(ctx: CanvasRenderingContext2D, rect: Rect): void {
-  ctx.save();
-  ctx.strokeStyle = "#fff0a2";
-  ctx.lineWidth = 8;
-  ctx.fillStyle = "rgba(255,218,99,0.12)";
-  ctx.fillRect(rect.x - 8, rect.y - 8, rect.width + 16, rect.height + 16);
-  ctx.strokeRect(rect.x - 8, rect.y - 8, rect.width + 16, rect.height + 16);
-  ctx.restore();
-}
-
 function findSourceAtPoint(state: State, geometry: BoardGeometry, point: { x: number; y: number }): { location: SourceLocation; rect: VisualRect } | null {
   if (state.park && contains(geometry.park, point)) return { location: { type: "park", index: 0 }, rect: geometry.park };
   for (let index = state.tableau.length - 1; index >= 0; index--) {
@@ -966,44 +531,6 @@ function findSourceAtPoint(state: State, geometry: BoardGeometry, point: { x: nu
     if (contains(rect, point)) return { location: { type: "column", index }, rect };
   }
   return null;
-}
-
-function getColumnCardRect(geometry: BoardGeometry, columnIndex: number, cardIndex: number): VisualRect {
-  const column = geometry.columns[columnIndex];
-  return {
-    x: column.x,
-    y: column.y + cardIndex * geometry.stackOffset,
-    width: geometry.card.width,
-    height: geometry.card.height,
-  };
-}
-
-function getEmptyColumnDropRect(geometry: BoardGeometry, columnIndex: number): VisualRect {
-  const column = geometry.columns[columnIndex];
-  return {
-    x: column.x,
-    y: column.y,
-    width: geometry.card.width,
-    height: geometry.card.height,
-  };
-}
-
-function getDragCardRect(geometry: BoardGeometry, drag: DragState): VisualRect {
-  if (drag.horizontal) {
-    return {
-      x: drag.pointer.x - drag.pointerOffset.x,
-      y: drag.pointer.y - drag.pointerOffset.y,
-      width: geometry.card.height,
-      height: geometry.card.width,
-      rotated: true,
-    };
-  }
-  return {
-    x: drag.pointer.x - drag.pointerOffset.x,
-    y: drag.pointer.y - drag.pointerOffset.y,
-    width: geometry.card.width,
-    height: geometry.card.height,
-  };
 }
 
 function findDropByOverlap(state: State, geometry: BoardGeometry, drag: DragState): DropLocation | null {
@@ -1050,17 +577,6 @@ function getFoundationRect(geometry: BoardGeometry, foundation: FoundationTarget
     return { ...geometry.majorHigh, x: getMajorFoundationTopX(geometry.majorHigh, "high", countAfterMove) };
   }
   return geometry.minorFoundations[Number(foundation.split("-")[1])];
-}
-
-function getMajorFoundationTopX(rect: VisualRect, direction: "low" | "high", count: number): number {
-  const visibleBacks = majorFoundationVisibleBacks(count);
-  return direction === "low"
-    ? rect.x + visibleBacks * MAJOR_FOUNDATION_BACK_OFFSET
-    : rect.x - visibleBacks * MAJOR_FOUNDATION_BACK_OFFSET;
-}
-
-function majorFoundationVisibleBacks(count: number): number {
-  return Math.min(Math.max(0, count - 1), MAJOR_FOUNDATION_MAX_BACKS);
 }
 
 function findNextAutoMove(state: State): AutoMove | null {
@@ -1121,71 +637,6 @@ function getCardAtSource(state: State, source: SourceLocation): string | null {
   if (source.type === "park") return state.park;
   const column = state.tableau[source.index];
   return column[column.length - 1] ?? null;
-}
-
-function contains(rect: Rect, point: { x: number; y: number }): boolean {
-  return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
-}
-
-function intersects(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-}
-
-function centerDistanceSquared(a: Rect, b: Rect): number {
-  const ax = a.x + a.width / 2;
-  const ay = a.y + a.height / 2;
-  const bx = b.x + b.width / 2;
-  const by = b.y + b.height / 2;
-  return (ax - bx) ** 2 + (ay - by) ** 2;
-}
-
-function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  fill: string,
-  stroke: string,
-  lineWidth: number,
-): void {
-  ctx.beginPath();
-  ctx.roundRect(x, y, width, height, radius);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = lineWidth;
-  ctx.stroke();
-}
-
-function drawTriangle(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x, y + size);
-  ctx.lineTo(x - size, y - size);
-  ctx.lineTo(x + size, y - size);
-  ctx.closePath();
-  ctx.fill();
-}
-
-function sourceKey(source: SourceLocation): string {
-  return `${source.type}:${source.index}`;
-}
-
-function dropKey(drop: DropLocation): string {
-  return `${drop.type}:${drop.index}`;
-}
-
-function rankText(rank: number): string {
-  if (rank === 1) return "A";
-  if (rank === 11) return "J";
-  if (rank === 12) return "Q";
-  if (rank === 13) return "K";
-  return String(rank);
-}
-
-function lerp(from: number, to: number, progress: number): number {
-  return from + (to - from) * progress;
 }
 
 function easeOut(progress: number): number {
