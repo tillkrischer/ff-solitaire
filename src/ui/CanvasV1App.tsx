@@ -439,8 +439,9 @@ function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, sta
   state.tableau.forEach((column, index) => {
     const columnRect = geometry.columns[index];
     const drop = dropKey({ type: "column", index });
-    if (validDrops.has(drop)) drawHighlight(ctx, { ...columnRect, height: geometry.card.height });
+    const isValidDrop = validDrops.has(drop);
     if (column.length === 0) {
+      if (isValidDrop) drawHighlight(ctx, { ...columnRect, height: geometry.card.height });
       drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, "EMPTY");
       return;
     }
@@ -448,6 +449,7 @@ function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, sta
       const topCardHidden = cardIndex === column.length - 1 && hiddenKey === sourceKey({ type: "column", index });
       if (!topCardHidden) drawCard(ctx, card, getColumnCardRect(geometry, index, cardIndex));
     });
+    if (isValidDrop) drawHighlight(ctx, getColumnCardRect(geometry, index, column.length - 1));
   });
 }
 
