@@ -233,7 +233,7 @@ function solve(
   initialState: State,
   options: { maxVisited: number; beam: number; trimEvery: number },
 ): { path: Move[] | null; visited: number; searchMetrics: SearchMetrics } {
-  const nodes: SearchNode[] = [
+  let nodes: SearchNode[] = [
     {
       state: autoMoveFoundations(cloneState(initialState)),
       parent: -1,
@@ -292,16 +292,62 @@ function solve(
       queue.push(nodes.length - 1);
     }
 
-    if (explored % options.trimEvery === 0) {
+    if (explored % options.trimEvery === 0 || queue.length > options.beam * 4) {
       const trimmed = queue.keepBest(options.beam);
       if (trimmed > 0) {
         searchMetrics.trimCount++;
         searchMetrics.trimmedNodes += trimmed;
+        nodes = compactSearchNodes(nodes, queue, currentIndex);
       }
     }
   }
 
   return { path: null, visited: explored, searchMetrics };
+}
+
+function compactSearchNodes(
+  nodes: SearchNode[],
+  queue: MaxHeap<number>,
+  currentIndex: number,
+): SearchNode[] {
+  const retained = new Set<number>();
+  const retainAncestors = (startIndex: number): void => {
+    let index = startIndex;
+    while (index !== -1 && !retained.has(index)) {
+      retained.add(index);
+      index = nodes[index].parent;
+    }
+  };
+
+  retainAncestors(currentIndex);
+  for (const queuedIndex of queue.snapshot()) {
+    retainAncestors(queuedIndex);
+  }
+
+  const indexMap = new Map<number, number>();
+  const compacted: SearchNode[] = [];
+  for (let index = 0; index < nodes.length; index++) {
+    if (!retained.has(index)) continue;
+    indexMap.set(index, compacted.length);
+    compacted.push(nodes[index]);
+  }
+
+  for (const node of compacted) {
+    if (node.parent === -1) continue;
+    const parent = indexMap.get(node.parent);
+    if (parent === undefined) throw new Error("Compacted search node is missing its parent");
+    node.parent = parent;
+  }
+
+  queue.mapValues((index) => {
+    const mapped = indexMap.get(index);
+    if (mapped === undefined) throw new Error("Compacted search queue is missing a node");
+    return mapped;
+  });
+
+  const mappedCurrentIndex = indexMap.get(currentIndex);
+  if (mappedCurrentIndex === undefined) throw new Error("Compacted search is missing the current node");
+  return compacted;
 }
 
 function reconstructPath(nodes: SearchNode[], nodeIndex: number): Move[] {
@@ -797,6 +843,19 @@ class MaxHeap<T> {
       this.sinkDown(index);
     }
     return trimmed;
+  }
+
+  snapshot(): T[] {
+    return this.values.slice();
+  }
+
+  mapValues(mapper: (value: T) => T): void {
+    for (let index = 0; index < this.values.length; index++) {
+      this.values[index] = mapper(this.values[index]);
+    }
+    for (let index = Math.floor(this.values.length / 2); index >= 0; index--) {
+      this.sinkDown(index);
+    }
   }
 
   private bubbleUp(index: number): void {
