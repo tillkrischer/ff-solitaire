@@ -34,7 +34,7 @@ registerStrategy(oneMoveConstructiveStrategy);
 registerStrategy(multiGateCascadeStrategy);
 registerStrategy(scriptedTableauRearrangementStrategy);
 registerStrategy(parkLockedMinorCascadeStrategy);
-registerStrategy(reverseSolveWalkStrategy);
+// registerStrategy(reverseSolveWalkStrategy);
 registerStrategy(reverseFoundationDealStrategy);
 registerStrategy(inlineTestDealStrategy);
 
