@@ -47,7 +47,7 @@ select {
 
 .canvas-controls {
   display: grid;
-  grid-template-columns: minmax(220px, 360px) auto minmax(260px, 1fr);
+  grid-template-columns: minmax(220px, 360px) auto minmax(250px, auto) minmax(260px, 1fr);
   align-items: end;
   gap: 12px;
   max-width: 1600px;
@@ -87,9 +87,59 @@ select {
 }
 
 .canvas-controls button:disabled,
-.canvas-controls select:disabled {
+.canvas-controls select:disabled,
+.mode-toggle:disabled {
   cursor: wait;
   opacity: 0.65;
+}
+
+.mode-toggle {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin: 0;
+  padding: 3px;
+  border: 2px solid #c18443;
+  border-radius: 6px;
+  background: #3b0b14;
+}
+
+.mode-toggle legend {
+  padding: 0 4px;
+  color: #f2c389;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.mode-toggle label {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 4px;
+  color: #ffd99b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.mode-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-toggle label:has(input:checked) {
+  background: linear-gradient(#8c3a1e, #5d1715);
+  color: #ffe4b5;
+}
+
+.mode-toggle:disabled label {
+  cursor: wait;
 }
 
 .canvas-controls dl {

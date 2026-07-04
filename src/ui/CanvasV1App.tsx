@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyManualOnly,
   canMoveToFoundation,
+  canStackOn,
   cloneState,
   decodeCard,
   getValidMoves,
@@ -16,11 +17,18 @@ import { generateDeal, listGenerationStrategies, type GenerateDealResult } from 
 type SourceLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
 type DropLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
 type FoundationTarget = "major-low" | "major-high" | `minor-${number}`;
+type GameMode = "single-card" | "entire-stack";
 
 type AutoMove = {
   card: string;
   from: SourceLocation;
   foundation: FoundationTarget;
+};
+
+type StackMove = {
+  fromIndex: number;
+  toIndex: number;
+  cards: string[];
 };
 
 type Rect = {
@@ -47,6 +55,14 @@ type FlyingCard = {
   card: string;
   from: VisualRect;
   to: VisualRect;
+  progress: number;
+};
+
+type FlyingStack = {
+  cards: string[];
+  from: VisualRect[];
+  to: VisualRect[];
+  hiddenSource: { columnIndex: number; startIndex: number; count: number };
   progress: number;
 };
 
@@ -105,9 +121,11 @@ export function CanvasV1App(): JSX.Element {
   const [selectedStrategy, setSelectedStrategy] = useState(strategies[0] ?? "one-move-constructive");
   const [deal, setDeal] = useState<GenerateDealResult>(() => generateDeal({ strategy: strategies[0] }));
   const [state, setState] = useState<State>(() => parseBoard(deal.board));
+  const [gameMode, setGameMode] = useState<GameMode>("single-card");
   const [isResolving, setIsResolving] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [flyingCard, setFlyingCard] = useState<FlyingCard | null>(null);
+  const [flyingStack, setFlyingStack] = useState<FlyingStack | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const stateRef = useRef(state);
@@ -135,8 +153,8 @@ export function CanvasV1App(): JSX.Element {
     if (!ctx) return;
     ctx.setTransform(scale * deviceRatio, 0, 0, scale * deviceRatio, 0, 0);
     geometryRef.current = makeGeometry();
-    renderBoard(ctx, geometryRef.current, stateRef.current, drag, flyingCard, isResolving);
-  }, [drag, flyingCard, isResolving]);
+    renderBoard(ctx, geometryRef.current, stateRef.current, drag, flyingCard, flyingStack, isResolving);
+  }, [drag, flyingCard, flyingStack, isResolving]);
 
   useEffect(() => {
     draw();
@@ -160,6 +178,7 @@ export function CanvasV1App(): JSX.Element {
     setState(parseBoard(nextDeal.board));
     setDrag(null);
     setFlyingCard(null);
+    setFlyingStack(null);
     setIsResolving(false);
   }
 
@@ -213,13 +232,28 @@ export function CanvasV1App(): JSX.Element {
     setDrag(null);
     if (!move) return;
 
-    const manualState = applyManualOnly(stateRef.current, move);
+    const beforeManualState = stateRef.current;
+    const manualState = applyManualOnly(beforeManualState, move);
     stateRef.current = manualState;
     setState(manualState);
     setIsResolving(true);
     await waitForPaint();
-    await resolveAutomaticMoves(manualState, source);
+    const stackState =
+      gameMode === "entire-stack" ? await resolveEntireStackMove(beforeManualState, manualState, move) : manualState;
+    await resolveAutomaticMoves(stackState, source);
     setIsResolving(false);
+  }
+
+  async function resolveEntireStackMove(beforeManualState: State, manualState: State, move: Move): Promise<State> {
+    const stackMove = getEntireStackMove(beforeManualState, manualState, move);
+    if (!stackMove) return manualState;
+
+    await animateStackMove(manualState, stackMove);
+    const next = applyStackMove(manualState, stackMove);
+    stateRef.current = next;
+    setState(next);
+    await waitForPaint();
+    return next;
   }
 
   async function resolveAutomaticMoves(startState: State, manualSource: SourceLocation): Promise<void> {
@@ -264,6 +298,37 @@ export function CanvasV1App(): JSX.Element {
     });
   }
 
+  async function animateStackMove(current: State, move: StackMove): Promise<void> {
+    const geometry = geometryRef.current;
+    const fromColumn = current.tableau[move.fromIndex];
+    const destinationColumn = current.tableau[move.toIndex];
+    const sourceStartIndex = fromColumn.length - move.cards.length;
+    const destinationStartIndex = destinationColumn.length;
+    const from = move.cards.map((_, index) => getColumnCardRect(geometry, move.fromIndex, fromColumn.length - 1 - index));
+    const to = move.cards.map((_, index) => getColumnCardRect(geometry, move.toIndex, destinationStartIndex + index));
+    const durationMs = prefersReducedMotion() ? REDUCED_MOTION_MS : AUTO_MOVE_MS;
+
+    await new Promise<void>((resolve) => {
+      const start = performance.now();
+      function frame(now: number): void {
+        const progress = Math.min(1, (now - start) / durationMs);
+        setFlyingStack({
+          cards: move.cards,
+          from,
+          to,
+          hiddenSource: { columnIndex: move.fromIndex, startIndex: sourceStartIndex, count: move.cards.length },
+          progress: easeOut(progress),
+        });
+        if (progress < 1) requestAnimationFrame(frame);
+        else {
+          setFlyingStack(null);
+          resolve();
+        }
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
   function toBoardPoint(event: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } {
     const canvas = event.currentTarget;
     const rect = canvas.getBoundingClientRect();
@@ -289,6 +354,29 @@ export function CanvasV1App(): JSX.Element {
         <button type="button" disabled={isResolving} onClick={startNewDeal}>
           New Deal
         </button>
+        <fieldset className="mode-toggle" disabled={isResolving}>
+          <legend>Mode</legend>
+          <label>
+            <input
+              type="radio"
+              name="game-mode"
+              value="single-card"
+              checked={gameMode === "single-card"}
+              onChange={() => setGameMode("single-card")}
+            />
+            <span>Single card</span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="game-mode"
+              value="entire-stack"
+              checked={gameMode === "entire-stack"}
+              onChange={() => setGameMode("entire-stack")}
+            />
+            <span>Entire stack</span>
+          </label>
+        </fieldset>
         <dl>
           <div>
             <dt>Seed</dt>
@@ -356,6 +444,7 @@ function renderBoard(
   state: State,
   drag: DragState | null,
   flyingCard: FlyingCard | null,
+  flyingStack: FlyingStack | null,
   isResolving: boolean,
 ): void {
   drawBackground(ctx, geometry);
@@ -365,8 +454,9 @@ function renderBoard(
   drawMajorFoundationStack(ctx, geometry.majorHigh, "high", state.majorHigh, geometry.card);
   drawMinorFoundations(ctx, geometry, state);
   drawPark(ctx, geometry, state, hiddenKey, validDrops);
-  drawTableau(ctx, geometry, state, hiddenKey, validDrops);
+  drawTableau(ctx, geometry, state, hiddenKey, flyingStack?.hiddenSource ?? null, validDrops);
 
+  if (flyingStack) drawFlyingStack(ctx, flyingStack, geometry.card);
   if (flyingCard) drawFlyingCard(ctx, flyingCard, geometry.card);
   if (drag) drawDragCard(ctx, geometry, drag);
   if (isResolving) drawResolvingVeil(ctx);
@@ -435,7 +525,14 @@ function drawPark(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state:
   if (state.park && hiddenKey !== sourceKey({ type: "park", index: 0 })) drawCard(ctx, state.park, geometry.park);
 }
 
-function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state: State, hiddenKey: string | null, validDrops: Set<string>): void {
+function drawTableau(
+  ctx: CanvasRenderingContext2D,
+  geometry: BoardGeometry,
+  state: State,
+  hiddenKey: string | null,
+  hiddenStack: FlyingStack["hiddenSource"] | null,
+  validDrops: Set<string>,
+): void {
   state.tableau.forEach((column, index) => {
     const columnRect = geometry.columns[index];
     const drop = dropKey({ type: "column", index });
@@ -447,7 +544,12 @@ function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, sta
     }
     column.forEach((card, cardIndex) => {
       const topCardHidden = cardIndex === column.length - 1 && hiddenKey === sourceKey({ type: "column", index });
-      if (!topCardHidden) drawCard(ctx, card, getColumnCardRect(geometry, index, cardIndex));
+      const stackCardHidden =
+        hiddenStack &&
+        hiddenStack.columnIndex === index &&
+        cardIndex >= hiddenStack.startIndex &&
+        cardIndex < hiddenStack.startIndex + hiddenStack.count;
+      if (!topCardHidden && !stackCardHidden) drawCard(ctx, card, getColumnCardRect(geometry, index, cardIndex));
     });
     if (isValidDrop) drawHighlight(ctx, getColumnCardRect(geometry, index, column.length - 1));
   });
@@ -468,6 +570,16 @@ function drawFlyingCard(ctx: CanvasRenderingContext2D, flying: FlyingCard, cardS
     height: rotated ? cardSize.width : cardSize.height,
     rotated,
   }, true);
+}
+
+function drawFlyingStack(ctx: CanvasRenderingContext2D, flying: FlyingStack, cardSize: { width: number; height: number }): void {
+  flying.cards.forEach((card, index) => {
+    const from = flying.from[index];
+    const to = flying.to[index];
+    const x = lerp(from.x, to.x, flying.progress);
+    const y = lerp(from.y, to.y, flying.progress);
+    drawCard(ctx, card, { x, y, width: cardSize.width, height: cardSize.height }, true);
+  });
 }
 
 function drawCard(ctx: CanvasRenderingContext2D, card: string, rect: VisualRect, floating = false): void {
@@ -698,6 +810,33 @@ function applySingleAutoMove(state: State, move: AutoMove): State {
   if (move.from.type === "park") next.park = null;
   else next.tableau[move.from.index].pop();
   moveCardToFoundation(next, move.card);
+  return next;
+}
+
+function getEntireStackMove(beforeManualState: State, manualState: State, move: Move): StackMove | null {
+  if (move.fromType !== "column" || move.toType !== "column") return null;
+
+  const sourceColumnBeforeMove = beforeManualState.tableau[move.fromIndex];
+  const movedCard = sourceColumnBeforeMove[sourceColumnBeforeMove.length - 1];
+  if (!movedCard || sourceColumnBeforeMove.length < 2) return null;
+
+  const cards: string[] = [];
+  let cardAbove = movedCard;
+  for (let index = sourceColumnBeforeMove.length - 2; index >= 0; index--) {
+    const candidate = sourceColumnBeforeMove[index];
+    if (!canStackOn(candidate, cardAbove)) break;
+    cards.push(candidate);
+    cardAbove = candidate;
+  }
+
+  if (cards.length === 0 || manualState.tableau[move.fromIndex].length < cards.length) return null;
+  return { fromIndex: move.fromIndex, toIndex: move.toIndex, cards };
+}
+
+function applyStackMove(state: State, move: StackMove): State {
+  const next = cloneState(state);
+  next.tableau[move.fromIndex].splice(next.tableau[move.fromIndex].length - move.cards.length);
+  next.tableau[move.toIndex].push(...move.cards);
   return next;
 }
 
