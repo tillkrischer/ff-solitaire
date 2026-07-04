@@ -34,6 +34,166 @@ select {
   font: inherit;
 }
 
+.version-chooser {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    #050505;
+  background-size: 24px 24px;
+  color: #ffe4b5;
+}
+
+.version-chooser nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 320px));
+  gap: 16px;
+}
+
+.version-chooser a {
+  display: grid;
+  gap: 8px;
+  min-height: 128px;
+  align-content: center;
+  padding: 20px;
+  border: 1px solid rgba(237, 175, 92, 0.55);
+  border-radius: 8px;
+  background: #24150f;
+  color: inherit;
+  text-decoration: none;
+}
+
+.version-chooser a:hover,
+.version-chooser a:focus-visible {
+  border-color: #ffd68e;
+  outline: none;
+}
+
+.version-chooser strong {
+  color: #ffd99b;
+  font-family: Georgia, Cambria, serif;
+  font-size: 28px;
+}
+
+.version-chooser span {
+  color: rgba(255, 228, 181, 0.72);
+}
+
+.canvas-v1-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  overflow: hidden;
+  padding: 10px;
+  background: #050505;
+  color: #ffe4b5;
+}
+
+.canvas-controls {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 360px) auto minmax(260px, 1fr);
+  align-items: end;
+  gap: 12px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 1px solid rgba(237, 175, 92, 0.45);
+  border-radius: 8px;
+  background: #21110d;
+}
+
+.canvas-controls label {
+  display: grid;
+  gap: 4px;
+  color: #f2c389;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.canvas-controls select,
+.canvas-controls button,
+.version-link {
+  min-height: 36px;
+  border: 2px solid #c18443;
+  border-radius: 6px;
+  background: #3b0b14;
+  color: #ffd99b;
+}
+
+.canvas-controls button,
+.version-link {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 14px;
+  cursor: pointer;
+  background: linear-gradient(#8c3a1e, #5d1715);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.canvas-controls button:disabled,
+.canvas-controls select:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.canvas-controls dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.canvas-controls div {
+  min-width: 0;
+}
+
+.canvas-controls dt,
+.canvas-controls dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-controls dt {
+  color: rgba(255, 224, 168, 0.6);
+}
+
+.canvas-controls dd {
+  color: #ffe4b5;
+}
+
+.canvas-board-wrap {
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+}
+
+.canvas-board {
+  display: block;
+  max-width: 100%;
+  border: 1px solid rgba(237, 175, 92, 0.5);
+  background: #21110d;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  touch-action: none;
+}
+
+@media (max-width: 760px) {
+  .version-chooser nav,
+  .canvas-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
 .game-board {
   --board-width: min(calc(100vw - clamp(16px, 2vw, 32px)), 1848px);
   --rail-width: calc(var(--board-width) * 0.07);

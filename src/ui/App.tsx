@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { CanvasV1App } from "./CanvasV1App.tsx";
 import {
   applyManualOnly,
   canMoveToFoundation,
@@ -96,6 +97,30 @@ const MAJOR_NAMES = [
 ];
 
 export function App(): JSX.Element {
+  const route = window.location.pathname;
+  if (route === "/canvas-v1") return <CanvasV1App />;
+  if (route === "/react-v1") return <ReactV1App />;
+  return <VersionChooser />;
+}
+
+function VersionChooser(): JSX.Element {
+  return (
+    <main className="version-chooser">
+      <nav aria-label="UI versions">
+        <a href="/react-v1">
+          <strong>React V1</strong>
+          <span>Current DOM and DnD implementation</span>
+        </a>
+        <a href="/canvas-v1">
+          <strong>Canvas V1</strong>
+          <span>Canvas board with React controls</span>
+        </a>
+      </nav>
+    </main>
+  );
+}
+
+function ReactV1App(): JSX.Element {
   const strategies = useMemo(() => listGenerationStrategies(), []);
   const [selectedStrategy, setSelectedStrategy] = useState(strategies[0] ?? "one-move-constructive");
   const [deal, setDeal] = useState<GenerateDealResult>(() => generateDeal({ strategy: strategies[0] }));
