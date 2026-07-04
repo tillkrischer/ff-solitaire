@@ -67,6 +67,8 @@ const BOARD_WIDTH = 2868;
 const BOARD_HEIGHT = 2040;
 const AUTO_MOVE_MS = 360;
 const REDUCED_MOTION_MS = 30;
+const MAJOR_FOUNDATION_BACK_OFFSET = 36;
+const MAJOR_FOUNDATION_MAX_BACKS = 7;
 const SUITS = [
   { name: "Cups", code: "C", symbol: "◆", color: "#a83e2f" },
   { name: "Swords", code: "S", symbol: "†", color: "#24798c" },
@@ -233,7 +235,7 @@ export function CanvasV1App(): JSX.Element {
   async function animateAutoMove(current: State, move: AutoMove, fallbackSource: SourceLocation): Promise<void> {
     const geometry = geometryRef.current;
     const from = getSourceRect(current, geometry, move.from) ?? getSourceRect(current, geometry, fallbackSource);
-    const to = getFoundationRect(geometry, move.foundation);
+    const to = getFoundationRect(geometry, move.foundation, move.card);
     const durationMs = prefersReducedMotion() ? REDUCED_MOTION_MS : AUTO_MOVE_MS;
     if (!from) {
       await delay(durationMs);
@@ -390,14 +392,6 @@ function drawBackground(ctx: CanvasRenderingContext2D, geometry: BoardGeometry):
   ctx.stroke();
   ctx.fillStyle = "#bd7030";
   for (let x = 115; x < BOARD_WIDTH - 80; x += 72) drawTriangle(ctx, x, geometry.topBand.y + 28, 26);
-  ctx.fillStyle = "#f0b066";
-  ctx.font = "700 42px Georgia";
-  ctx.fillText("WINS", 90, BOARD_HEIGHT - 210);
-  drawRoundedRect(ctx, 90, BOARD_HEIGHT - 170, 150, 68, 10, "#4c0d17", "#efb768", 6);
-  ctx.fillStyle = "#f0b066";
-  ctx.textAlign = "center";
-  ctx.fillText("15", 165, BOARD_HEIGHT - 124);
-  ctx.textAlign = "start";
 }
 
 function drawMajorFoundationStack(
@@ -413,13 +407,12 @@ function drawMajorFoundationStack(
     return;
   }
   const count = direction === "low" ? rank + 1 : 22 - rank;
-  const visibleBacks = Math.min(Math.max(0, count - 1), 7);
-  const offset = 36;
+  const visibleBacks = majorFoundationVisibleBacks(count);
   for (let i = 0; i < visibleBacks; i++) {
-    const x = direction === "low" ? rect.x + i * offset : rect.x - i * offset;
+    const x = direction === "low" ? rect.x + i * MAJOR_FOUNDATION_BACK_OFFSET : rect.x - i * MAJOR_FOUNDATION_BACK_OFFSET;
     drawCardBack(ctx, { ...rect, x }, cardSize);
   }
-  const topX = direction === "low" ? rect.x + visibleBacks * offset : rect.x - visibleBacks * offset;
+  const topX = getMajorFoundationTopX(rect, direction, count);
   drawCard(ctx, `M${rank}`, { ...rect, x: topX });
 }
 
@@ -628,10 +621,29 @@ function getSourceRect(state: State, geometry: BoardGeometry, source: SourceLoca
   return getColumnCardRect(geometry, source.index, column.length - 1);
 }
 
-function getFoundationRect(geometry: BoardGeometry, foundation: FoundationTarget): VisualRect {
-  if (foundation === "major-low") return geometry.majorLow;
-  if (foundation === "major-high") return geometry.majorHigh;
+function getFoundationRect(geometry: BoardGeometry, foundation: FoundationTarget, card: string): VisualRect {
+  if (foundation === "major-low") {
+    const decoded = decodeCard(card);
+    const countAfterMove = decoded.kind === "major" ? decoded.rank + 1 : 0;
+    return { ...geometry.majorLow, x: getMajorFoundationTopX(geometry.majorLow, "low", countAfterMove) };
+  }
+  if (foundation === "major-high") {
+    const decoded = decodeCard(card);
+    const countAfterMove = decoded.kind === "major" ? 22 - decoded.rank : 0;
+    return { ...geometry.majorHigh, x: getMajorFoundationTopX(geometry.majorHigh, "high", countAfterMove) };
+  }
   return geometry.minorFoundations[Number(foundation.split("-")[1])];
+}
+
+function getMajorFoundationTopX(rect: VisualRect, direction: "low" | "high", count: number): number {
+  const visibleBacks = majorFoundationVisibleBacks(count);
+  return direction === "low"
+    ? rect.x + visibleBacks * MAJOR_FOUNDATION_BACK_OFFSET
+    : rect.x - visibleBacks * MAJOR_FOUNDATION_BACK_OFFSET;
+}
+
+function majorFoundationVisibleBacks(count: number): number {
+  return Math.min(Math.max(0, count - 1), MAJOR_FOUNDATION_MAX_BACKS);
 }
 
 function findNextAutoMove(state: State): AutoMove | null {
