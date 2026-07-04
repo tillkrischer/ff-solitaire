@@ -55,6 +55,7 @@ type FlyingCard = {
   card: string;
   from: VisualRect;
   to: VisualRect;
+  hiddenSource: SourceLocation;
   progress: number;
 };
 
@@ -337,7 +338,13 @@ export function CanvasV1App(): JSX.Element {
       const start = performance.now();
       function frame(now: number): void {
         const progress = Math.min(1, (now - start) / durationMs);
-        setFlyingCard({ card: move.card, from: animationFrom, to: animationTo, progress: easeOut(progress) });
+        setFlyingCard({
+          card: move.card,
+          from: animationFrom,
+          to: animationTo,
+          hiddenSource: move.from,
+          progress: easeOut(progress),
+        });
         if (progress < 1) requestAnimationFrame(frame);
         else {
           setFlyingCard(null);
@@ -501,7 +508,7 @@ function renderBoard(
   isResolving: boolean,
 ): void {
   drawBackground(ctx, geometry);
-  const hiddenKey = drag ? sourceKey(drag.source) : null;
+  const hiddenKey = drag ? sourceKey(drag.source) : flyingCard ? sourceKey(flyingCard.hiddenSource) : null;
   const validDrops = new Set(drag?.validMoves.map((move) => dropKey({ type: move.toType, index: move.toIndex } as DropLocation)) ?? []);
   drawMajorFoundationStack(ctx, geometry.majorLow, "low", state.majorLow, geometry.card);
   drawMajorFoundationStack(ctx, geometry.majorHigh, "high", state.majorHigh, geometry.card);
