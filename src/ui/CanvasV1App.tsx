@@ -628,9 +628,9 @@ function drawTableau(
     const columnRect = geometry.columns[index];
     const drop = dropKey({ type: "column", index });
     const isValidDrop = validDrops.has(drop);
+    drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, { fill: "#2a1a12" });
     if (column.length === 0) {
       if (isValidDrop) drawHighlight(ctx, { ...columnRect, height: geometry.card.height });
-      drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, { fill: "#2a1a12" });
       return;
     }
     column.forEach((card, cardIndex) => {
