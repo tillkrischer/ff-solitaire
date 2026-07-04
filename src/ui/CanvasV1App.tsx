@@ -406,7 +406,7 @@ function drawMajorFoundationStack(
 ): void {
   const isEmpty = direction === "low" ? rank < 0 : rank > 21;
   if (isEmpty) {
-    drawEmptySlot(ctx, rect, "MAJOR");
+    drawEmptySlot(ctx, rect);
     return;
   }
   const count = direction === "low" ? rank + 1 : 22 - rank;
@@ -427,9 +427,12 @@ function drawMinorFoundations(ctx: CanvasRenderingContext2D, geometry: BoardGeom
 }
 
 function drawPark(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state: State, hiddenKey: string | null, validDrops: Set<string>): void {
-  if (validDrops.has(dropKey({ type: "park", index: 0 }))) drawHighlight(ctx, geometry.park);
+  const isValidDrop = validDrops.has(dropKey({ type: "park", index: 0 }));
+  if (isValidDrop) {
+    drawHighlight(ctx, geometry.park);
+    if (!state.park) drawEmptySlot(ctx, geometry.park);
+  }
   if (state.park && hiddenKey !== sourceKey({ type: "park", index: 0 })) drawCard(ctx, state.park, geometry.park);
-  if (!state.park) drawEmptySlot(ctx, geometry.park, "PARK");
 }
 
 function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, state: State, hiddenKey: string | null, validDrops: Set<string>): void {
@@ -439,7 +442,7 @@ function drawTableau(ctx: CanvasRenderingContext2D, geometry: BoardGeometry, sta
     const isValidDrop = validDrops.has(drop);
     if (column.length === 0) {
       if (isValidDrop) drawHighlight(ctx, { ...columnRect, height: geometry.card.height });
-      drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, "EMPTY");
+      drawEmptySlot(ctx, { ...columnRect, height: geometry.card.height }, { fill: "#2a1a12" });
       return;
     }
     column.forEach((card, cardIndex) => {
@@ -525,27 +528,33 @@ function drawCardFace(ctx: CanvasRenderingContext2D, card: string, x: number, y:
   ctx.textAlign = "start";
 }
 
-function drawEmptySlot(ctx: CanvasRenderingContext2D, rect: VisualRect, label: string): void {
+function drawEmptySlot(
+  ctx: CanvasRenderingContext2D,
+  rect: VisualRect,
+  style: { fill?: string; stroke?: string } = {},
+): void {
   ctx.save();
   if (rect.rotated) {
     ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
     ctx.rotate(Math.PI / 2);
-    drawSlotFace(ctx, -rect.height / 2, -rect.width / 2, rect.height, rect.width, label);
+    drawSlotFace(ctx, -rect.height / 2, -rect.width / 2, rect.height, rect.width, style);
   } else {
-    drawSlotFace(ctx, rect.x, rect.y, rect.width, rect.height, label);
+    drawSlotFace(ctx, rect.x, rect.y, rect.width, rect.height, style);
   }
   ctx.restore();
 }
 
-function drawSlotFace(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, label: string): void {
+function drawSlotFace(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  style: { fill?: string; stroke?: string },
+): void {
   ctx.setLineDash([14, 14]);
-  drawRoundedRect(ctx, x, y, width, height, 4, "rgba(40,20,18,0.36)", "rgba(220,151,78,0.8)", 4);
+  drawRoundedRect(ctx, x, y, width, height, 4, style.fill ?? "rgba(40,20,18,0.36)", style.stroke ?? "rgba(220,151,78,0.8)", 4);
   ctx.setLineDash([]);
-  ctx.fillStyle = "rgba(255,216,141,0.62)";
-  ctx.font = `700 ${Math.round(width * 0.12)}px Georgia`;
-  ctx.textAlign = "center";
-  ctx.fillText(label, x + width / 2, y + height / 2);
-  ctx.textAlign = "start";
 }
 
 function drawHighlight(ctx: CanvasRenderingContext2D, rect: Rect): void {
