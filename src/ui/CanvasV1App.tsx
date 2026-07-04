@@ -191,7 +191,7 @@ export function CanvasV1App(): JSX.Element {
       return {
         ...current,
         pointer: point,
-        horizontal: point.y - current.pointerOffset.y < geometryRef.current.tableau.y - 3 * geometryRef.current.card.height / 4,
+        horizontal: point.y - current.pointerOffset.y < geometryRef.current.tableau.y - geometryRef.current.card.height / 2,
       };
     });
   }
