@@ -125,14 +125,16 @@ const PAGE_BACKGROUND = {
     "linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)",
   backgroundSize: "24px 24px",
 };
-const controlLabelClass = "grid gap-1 text-xs uppercase text-[#f2c389]";
 const controlInputClass =
-  "min-h-9 rounded-md border-2 border-[#c18443] bg-[#3b0b14] text-[#ffd99b] disabled:cursor-wait";
+  "h-[38px] rounded-md border-2 border-[#c18443] bg-[#3b0b14] text-[#ffd99b] disabled:cursor-wait";
+const compactSelectClass = classNames(controlInputClass, "w-[min(100%,240px)] min-w-0 px-2 font-extrabold");
 const controlButtonClass =
-  "inline-grid min-h-9 cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
+  "inline-grid h-[38px] w-[min(100%,180px)] cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
 const fieldsetClass =
-  "m-0 flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
-const fieldsetLegendClass = "px-1 text-xs uppercase text-[#f2c389]";
+  "relative m-0 inline-flex min-h-9 max-w-full min-w-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
+const modeFieldsetClass = classNames(fieldsetClass, "w-max");
+const soundFieldsetClass = classNames(fieldsetClass, "w-max");
+const fieldsetLegendClass = "absolute -top-3 left-2 bg-[#21110d] px-1 text-xs uppercase text-[#f2c389]";
 const toggleLabelBaseClass =
   "relative inline-grid min-h-7 cursor-pointer place-items-center rounded px-2.5 text-xs font-extrabold text-[#ffd99b]";
 const toggleLabelActiveClass = "bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] text-[#ffe4b5]";
@@ -543,31 +545,33 @@ export function CanvasV1App(): JSX.Element {
       style={PAGE_BACKGROUND}
     >
       <section
-        className="mx-auto grid w-full max-w-[1600px] grid-cols-1 items-end gap-3 rounded-lg border border-[rgba(237,175,92,0.45)] bg-[#21110d] px-3 py-2.5 min-[761px]:grid-cols-[minmax(220px,360px)_auto_auto_minmax(250px,auto)_minmax(92px,auto)_minmax(260px,1fr)]"
+        className="mx-auto grid w-full max-w-[1600px] grid-cols-1 items-end justify-center justify-items-center gap-3 rounded-lg border border-[rgba(237,175,92,0.45)] bg-[#21110d] px-3 py-2.5 min-[761px]:grid-cols-[180px_240px_180px_max-content_max-content]"
         aria-label="Canvas controls"
       >
-        <label className={controlLabelClass}>
-          <span>Deal strategy</span>
+        <button className={controlButtonClass} type="button" disabled={isResolving} onClick={startNewDeal}>
+          New Deal
+        </button>
+        <div className="w-[min(100%,240px)] min-w-0">
           <select
-            className={controlInputClass}
+            aria-label="Deal strategy"
+            className={compactSelectClass}
             value={selectedStrategy}
             disabled={isResolving}
             onChange={(event) => setSelectedStrategy(event.target.value)}
           >
-            {strategies.map((strategy) => (
-              <option key={strategy} value={strategy}>
-                {strategy}
-              </option>
-            ))}
+            <optgroup label="Deal strategies">
+              {strategies.map((strategy) => (
+                <option key={strategy} value={strategy}>
+                  {strategy}
+                </option>
+              ))}
+            </optgroup>
           </select>
-        </label>
-        <button className={controlButtonClass} type="button" disabled={isResolving} onClick={startNewDeal}>
-          New Deal
-        </button>
+        </div>
         <button className={controlButtonClass} type="button" disabled={isResolving || !previousState} onClick={undoMove}>
           Undo
         </button>
-        <fieldset className={fieldsetClass} disabled={isResolving}>
+        <fieldset className={modeFieldsetClass} disabled={isResolving}>
           <legend className={fieldsetLegendClass}>Mode</legend>
           <label
             className={classNames(
@@ -604,30 +608,31 @@ export function CanvasV1App(): JSX.Element {
             <span>Entire stack</span>
           </label>
         </fieldset>
-        <fieldset className={classNames(fieldsetClass, "min-w-[92px]")}>
+        <fieldset className={soundFieldsetClass}>
           <legend className={fieldsetLegendClass}>Sound</legend>
           <label className={classNames(toggleLabelBaseClass, soundEnabled && toggleLabelActiveClass)}>
             <input
               className={visuallyHiddenInputClass}
-              type="checkbox"
+              type="radio"
+              name="sound-enabled"
+              value="on"
               checked={soundEnabled}
-              onChange={(event) => setSoundEnabled(event.target.checked)}
+              onChange={() => setSoundEnabled(true)}
             />
-            <span>{soundEnabled ? "On" : "Off"}</span>
+            <span>On</span>
+          </label>
+          <label className={classNames(toggleLabelBaseClass, !soundEnabled && toggleLabelActiveClass)}>
+            <input
+              className={visuallyHiddenInputClass}
+              type="radio"
+              name="sound-enabled"
+              value="off"
+              checked={!soundEnabled}
+              onChange={() => setSoundEnabled(false)}
+            />
+            <span>Off</span>
           </label>
         </fieldset>
-        <dl className="m-0 grid grid-cols-3 gap-2.5 text-xs">
-          <div className="min-w-0">
-            <dt className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[rgba(255,224,168,0.6)]">Seed</dt>
-            <dd className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[#ffe4b5]">{deal.seed}</dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[rgba(255,224,168,0.6)]">Status</dt>
-            <dd className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-[#ffe4b5]">
-              {isGoalState(state) ? "Won" : isResolving ? "Resolving" : "Playing"}
-            </dd>
-          </div>
-        </dl>
       </section>
       <div ref={wrapRef} className="grid min-h-0 w-full items-start justify-items-center">
         <canvas
