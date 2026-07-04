@@ -117,13 +117,49 @@ const MAJOR_NAMES = [
   "Judgement",
   "The World",
 ];
+const SELECTED_STRATEGY_STORAGE_KEY = "ff-solitaire:selected-strategy";
+const GAME_MODE_STORAGE_KEY = "ff-solitaire:game-mode";
+const SOUND_ENABLED_STORAGE_KEY = "ff-solitaire:sound-enabled";
+
+function readLocalStorage(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Preference persistence should not block gameplay.
+  }
+}
+
+function getInitialStrategy(strategies: string[]): string {
+  const fallback = strategies[0] ?? "one-move-constructive";
+  const storedStrategy = readLocalStorage(SELECTED_STRATEGY_STORAGE_KEY);
+  return storedStrategy && strategies.includes(storedStrategy) ? storedStrategy : fallback;
+}
+
+function getInitialGameMode(): GameMode {
+  const storedMode = readLocalStorage(GAME_MODE_STORAGE_KEY);
+  return storedMode === "single-card" || storedMode === "entire-stack" ? storedMode : "single-card";
+}
+
+function getInitialSoundEnabled(): boolean {
+  return readLocalStorage(SOUND_ENABLED_STORAGE_KEY) !== "false";
+}
 
 export function CanvasV1App(): JSX.Element {
   const strategies = useMemo(() => listGenerationStrategies(), []);
-  const [selectedStrategy, setSelectedStrategy] = useState(strategies[0] ?? "one-move-constructive");
-  const [deal, setDeal] = useState<GenerateDealResult>(() => generateDeal({ strategy: strategies[0] }));
+  const initialStrategy = useMemo(() => getInitialStrategy(strategies), [strategies]);
+  const [selectedStrategy, setSelectedStrategy] = useState(initialStrategy);
+  const [deal, setDeal] = useState<GenerateDealResult>(() => generateDeal({ strategy: initialStrategy }));
   const [state, setState] = useState<State>(() => parseBoard(deal.board));
-  const [gameMode, setGameMode] = useState<GameMode>("single-card");
+  const [gameMode, setGameMode] = useState<GameMode>(() => getInitialGameMode());
+  const [soundEnabled, setSoundEnabled] = useState(() => getInitialSoundEnabled());
   const [isResolving, setIsResolving] = useState(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [flyingCard, setFlyingCard] = useState<FlyingCard | null>(null);
@@ -137,6 +173,7 @@ export function CanvasV1App(): JSX.Element {
   const dragRef = useRef<DragState | null>(drag);
   const flyingCardRef = useRef<FlyingCard | null>(flyingCard);
   const flyingStackRef = useRef<FlyingStack | null>(flyingStack);
+  const soundEnabledRef = useRef(soundEnabled);
   const geometryRef = useRef<BoardGeometry>(makeGeometry());
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -151,6 +188,22 @@ export function CanvasV1App(): JSX.Element {
   useEffect(() => {
     isResolvingRef.current = isResolving;
   }, [isResolving]);
+
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    writeLocalStorage(SELECTED_STRATEGY_STORAGE_KEY, selectedStrategy);
+  }, [selectedStrategy]);
+
+  useEffect(() => {
+    writeLocalStorage(GAME_MODE_STORAGE_KEY, gameMode);
+  }, [gameMode]);
+
+  useEffect(() => {
+    writeLocalStorage(SOUND_ENABLED_STORAGE_KEY, String(soundEnabled));
+  }, [soundEnabled]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -339,6 +392,7 @@ export function CanvasV1App(): JSX.Element {
   }
 
   function playCardMoveSound(count = 1): void {
+    if (!soundEnabledRef.current) return;
     const audio = getAudioContext();
     if (!audio) return;
     if (audio.state === "suspended") void audio.resume();
@@ -503,14 +557,21 @@ export function CanvasV1App(): JSX.Element {
             <span>Entire stack</span>
           </label>
         </fieldset>
+        <fieldset className="mode-toggle sound-toggle">
+          <legend>Sound</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={soundEnabled}
+              onChange={(event) => setSoundEnabled(event.target.checked)}
+            />
+            <span>{soundEnabled ? "On" : "Off"}</span>
+          </label>
+        </fieldset>
         <dl>
           <div>
             <dt>Seed</dt>
             <dd>{deal.seed}</dd>
-          </div>
-          <div>
-            <dt>Attempts</dt>
-            <dd>{deal.attempts}</dd>
           </div>
           <div>
             <dt>Status</dt>
