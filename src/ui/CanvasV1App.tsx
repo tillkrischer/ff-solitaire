@@ -376,24 +376,25 @@ function renderBoard(
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, geometry: BoardGeometry): void {
+  const separatorY = geometry.topBand.y + geometry.topBand.height;
   ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
   ctx.fillStyle = "#20110d";
   ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
   ctx.fillStyle = "#6f211a";
   ctx.fillRect(0, geometry.topBand.y, BOARD_WIDTH, geometry.topBand.height);
   ctx.fillStyle = "#2a1a12";
-  ctx.fillRect(0, geometry.tableau.y, BOARD_WIDTH, BOARD_HEIGHT - geometry.tableau.y);
+  ctx.fillRect(0, separatorY, BOARD_WIDTH, BOARD_HEIGHT - separatorY);
   ctx.fillStyle = "rgba(195,110,52,0.55)";
   for (let x = 80; x < BOARD_WIDTH; x += 70) {
-    for (let y = geometry.tableau.y + 28; y < BOARD_HEIGHT - 120; y += 70) {
+    for (let y = separatorY + 28; y < BOARD_HEIGHT - 120; y += 70) {
       ctx.fillText("✦", x, y);
     }
   }
   ctx.strokeStyle = "#a8632c";
   ctx.lineWidth = 8;
   ctx.beginPath();
-  ctx.moveTo(0, geometry.tableau.y);
-  ctx.lineTo(BOARD_WIDTH, geometry.tableau.y);
+  ctx.moveTo(0, separatorY);
+  ctx.lineTo(BOARD_WIDTH, separatorY);
   ctx.stroke();
   ctx.fillStyle = "#bd7030";
   for (let x = 115; x < BOARD_WIDTH - 80; x += 72) drawTriangle(ctx, x, geometry.topBand.y + 28, 26);
