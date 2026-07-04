@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   applyManualOnly,
   canMoveToFoundation,
@@ -134,6 +134,8 @@ export function CanvasV1App(): JSX.Element {
   const previousStateRef = useRef<State | null>(previousState);
   const isResolvingRef = useRef(isResolving);
   const dragRef = useRef<DragState | null>(drag);
+  const flyingCardRef = useRef<FlyingCard | null>(flyingCard);
+  const flyingStackRef = useRef<FlyingStack | null>(flyingStack);
   const geometryRef = useRef<BoardGeometry>(makeGeometry());
 
   useEffect(() => {
@@ -147,10 +149,6 @@ export function CanvasV1App(): JSX.Element {
   useEffect(() => {
     isResolvingRef.current = isResolving;
   }, [isResolving]);
-
-  useEffect(() => {
-    dragRef.current = drag;
-  }, [drag]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -170,12 +168,15 @@ export function CanvasV1App(): JSX.Element {
     if (!ctx) return;
     ctx.setTransform(scale * deviceRatio, 0, 0, scale * deviceRatio, 0, 0);
     geometryRef.current = makeGeometry();
-    renderBoard(ctx, geometryRef.current, stateRef.current, drag, flyingCard, flyingStack);
-  }, [drag, flyingCard, flyingStack, isResolving]);
+    renderBoard(ctx, geometryRef.current, stateRef.current, dragRef.current, flyingCardRef.current, flyingStackRef.current);
+  }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    dragRef.current = drag;
+    flyingCardRef.current = flyingCard;
+    flyingStackRef.current = flyingStack;
     draw();
-  }, [draw, state]);
+  }, [draw, state, drag, flyingCard, flyingStack]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -210,9 +211,9 @@ export function CanvasV1App(): JSX.Element {
     setState(nextState);
     previousStateRef.current = null;
     setPreviousState(null);
-    setDrag(null);
-    setFlyingCard(null);
-    setFlyingStack(null);
+    setDragState(null);
+    setFlyingCardFrame(null);
+    setFlyingStackFrame(null);
     setIsResolving(false);
   }
 
@@ -225,9 +226,9 @@ export function CanvasV1App(): JSX.Element {
     previousStateRef.current = null;
     setState(restored);
     setPreviousState(null);
-    setDrag(null);
-    setFlyingCard(null);
-    setFlyingStack(null);
+    setDragState(null);
+    setFlyingCardFrame(null);
+    setFlyingStackFrame(null);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>): void {
@@ -241,7 +242,7 @@ export function CanvasV1App(): JSX.Element {
       (move) => move.fromType === source.location.type && move.fromIndex === source.location.index,
     );
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({
+    setDragState({
       source: source.location,
       card,
       pointerOffset: { x: point.x - source.rect.x, y: point.y - source.rect.y },
@@ -253,7 +254,7 @@ export function CanvasV1App(): JSX.Element {
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>): void {
     const point = toBoardPoint(event);
-    setDrag((current) => {
+    setDragState((current) => {
       if (!current) return null;
       return {
         ...current,
@@ -264,21 +265,24 @@ export function CanvasV1App(): JSX.Element {
   }
 
   async function handlePointerUp(event: React.PointerEvent<HTMLCanvasElement>): Promise<void> {
-    if (!drag) return;
+    const currentDragState = dragRef.current;
+    if (!currentDragState) return;
     event.currentTarget.releasePointerCapture(event.pointerId);
     const point = toBoardPoint(event);
     const currentDrag = {
-      ...drag,
+      ...currentDragState,
       pointer: point,
-      horizontal: point.y - drag.pointerOffset.y < geometryRef.current.tableau.y - 3 * geometryRef.current.card.height / 4,
+      horizontal: point.y - currentDragState.pointerOffset.y < geometryRef.current.tableau.y - 3 * geometryRef.current.card.height / 4,
     };
     const destination = findDropByOverlap(stateRef.current, geometryRef.current, currentDrag);
-    const source = drag.source;
+    const source = currentDragState.source;
     const move = destination
-      ? drag.validMoves.find((candidate) => candidate.toType === destination.type && candidate.toIndex === destination.index)
+      ? currentDragState.validMoves.find((candidate) => candidate.toType === destination.type && candidate.toIndex === destination.index)
       : null;
-    setDrag(null);
-    if (!move) return;
+    if (!move) {
+      setDragState(null);
+      return;
+    }
 
     const beforeManualState = stateRef.current;
     const undoSnapshot = cloneState(beforeManualState);
@@ -287,8 +291,8 @@ export function CanvasV1App(): JSX.Element {
     const manualState = applyManualOnly(beforeManualState, move);
     stateRef.current = manualState;
     setState(manualState);
+    setDragState(null);
     setIsResolving(true);
-    await waitForPaint();
     const stackState =
       gameMode === "entire-stack" ? await resolveEntireStackMove(beforeManualState, manualState, move) : manualState;
     await resolveAutomaticMoves(stackState, source);
@@ -303,7 +307,7 @@ export function CanvasV1App(): JSX.Element {
     const next = applyStackMove(manualState, stackMove);
     stateRef.current = next;
     setState(next);
-    await waitForPaint();
+    setFlyingStackFrame(null);
     return next;
   }
 
@@ -318,7 +322,7 @@ export function CanvasV1App(): JSX.Element {
       stateRef.current = current;
       setState(current);
       lastSource = nextMove.from;
-      await waitForPaint();
+      if (!findNextAutoMove(current)) setFlyingCardFrame(null);
     }
   }
 
@@ -333,21 +337,26 @@ export function CanvasV1App(): JSX.Element {
     }
     const animationFrom = from;
     const animationTo = to;
+    const initialFlyingCard: FlyingCard = {
+      card: move.card,
+      from: animationFrom,
+      to: animationTo,
+      hiddenSource: move.from,
+      progress: 0,
+    };
+
+    setFlyingCardFrame(initialFlyingCard);
 
     await new Promise<void>((resolve) => {
       const start = performance.now();
       function frame(now: number): void {
         const progress = Math.min(1, (now - start) / durationMs);
-        setFlyingCard({
-          card: move.card,
-          from: animationFrom,
-          to: animationTo,
-          hiddenSource: move.from,
+        setFlyingCardFrame({
+          ...initialFlyingCard,
           progress: easeOut(progress),
         });
         if (progress < 1) requestAnimationFrame(frame);
         else {
-          setFlyingCard(null);
           resolve();
         }
       }
@@ -364,26 +373,50 @@ export function CanvasV1App(): JSX.Element {
     const from = move.cards.map((_, index) => getColumnCardRect(geometry, move.fromIndex, fromColumn.length - 1 - index));
     const to = move.cards.map((_, index) => getColumnCardRect(geometry, move.toIndex, destinationStartIndex + index));
     const durationMs = prefersReducedMotion() ? REDUCED_MOTION_MS : AUTO_MOVE_MS;
+    const initialFlyingStack: FlyingStack = {
+      cards: move.cards,
+      from,
+      to,
+      hiddenSource: { columnIndex: move.fromIndex, startIndex: sourceStartIndex, count: move.cards.length },
+      progress: 0,
+    };
+
+    setFlyingStackFrame(initialFlyingStack);
 
     await new Promise<void>((resolve) => {
       const start = performance.now();
       function frame(now: number): void {
         const progress = Math.min(1, (now - start) / durationMs);
-        setFlyingStack({
-          cards: move.cards,
-          from,
-          to,
-          hiddenSource: { columnIndex: move.fromIndex, startIndex: sourceStartIndex, count: move.cards.length },
+        setFlyingStackFrame({
+          ...initialFlyingStack,
           progress: easeOut(progress),
         });
         if (progress < 1) requestAnimationFrame(frame);
         else {
-          setFlyingStack(null);
           resolve();
         }
       }
       requestAnimationFrame(frame);
     });
+  }
+
+  function setDragState(next: DragState | null | ((current: DragState | null) => DragState | null)): void {
+    const resolved = typeof next === "function" ? next(dragRef.current) : next;
+    dragRef.current = resolved;
+    setDrag(resolved);
+    draw();
+  }
+
+  function setFlyingCardFrame(next: FlyingCard | null): void {
+    flyingCardRef.current = next;
+    setFlyingCard(next);
+    draw();
+  }
+
+  function setFlyingStackFrame(next: FlyingStack | null): void {
+    flyingStackRef.current = next;
+    setFlyingStack(next);
+    draw();
   }
 
   function toBoardPoint(event: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } {
@@ -460,7 +493,7 @@ export function CanvasV1App(): JSX.Element {
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={() => setDrag(null)}
+          onPointerCancel={() => setDragState(null)}
         />
       </div>
     </main>
@@ -976,10 +1009,6 @@ function easeOut(progress: number): number {
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
-function waitForPaint(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
 function delay(ms: number): Promise<void> {
