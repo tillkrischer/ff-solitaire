@@ -6,7 +6,6 @@ import {
   cloneState,
   decodeCard,
   getValidMoves,
-  isGoalState,
   moveCardToFoundation,
   parseBoard,
   type Move,
@@ -129,9 +128,9 @@ const controlInputClass =
   "h-[38px] rounded-md border-2 border-[#c18443] bg-[#3b0b14] text-[#ffd99b] disabled:cursor-wait";
 const compactSelectClass = classNames(controlInputClass, "w-[min(100%,240px)] min-w-0 px-2 font-extrabold");
 const controlButtonClass =
-  "inline-grid h-[38px] w-[min(100%,180px)] cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
+  "inline-grid h-[38px] w-[180px] shrink-0 cursor-pointer place-items-center rounded-md border-2 border-[#c18443] bg-gradient-to-b from-[#8c3a1e] to-[#5d1715] px-3.5 font-extrabold text-[#ffd99b] no-underline disabled:cursor-wait";
 const fieldsetClass =
-  "relative m-0 inline-flex min-h-9 max-w-full min-w-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
+  "relative m-0 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border-2 border-[#c18443] bg-[#3b0b14] p-[3px] disabled:cursor-wait";
 const modeFieldsetClass = classNames(fieldsetClass, "w-max");
 const soundFieldsetClass = classNames(fieldsetClass, "w-max");
 const fieldsetLegendClass = "absolute -top-3 left-2 bg-[#21110d] px-1 text-xs uppercase text-[#f2c389]";
@@ -162,7 +161,7 @@ function writeLocalStorage(key: string, value: string): void {
 }
 
 function getInitialStrategy(strategies: string[]): string {
-  const fallback = strategies[0] ?? "one-move-constructive";
+  const fallback = "inline-test-deal";
   const storedStrategy = readLocalStorage(SELECTED_STRATEGY_STORAGE_KEY);
   return storedStrategy && strategies.includes(storedStrategy) ? storedStrategy : fallback;
 }
@@ -545,13 +544,13 @@ export function CanvasV1App(): JSX.Element {
       style={PAGE_BACKGROUND}
     >
       <section
-        className="mx-auto grid w-full max-w-[1600px] grid-cols-1 items-end justify-center justify-items-center gap-3 rounded-lg border border-[rgba(237,175,92,0.45)] bg-[#21110d] px-3 py-2.5 min-[761px]:grid-cols-[180px_240px_180px_max-content_max-content]"
+        className="mx-auto flex w-full max-w-[1600px] flex-nowrap items-end justify-start gap-3 overflow-x-auto px-3 py-2.5 min-[761px]:justify-center"
         aria-label="Canvas controls"
       >
         <button className={controlButtonClass} type="button" disabled={isResolving} onClick={startNewDeal}>
           New Deal
         </button>
-        <div className="w-[min(100%,240px)] min-w-0">
+        <div className="w-[240px] shrink-0">
           <select
             aria-label="Deal strategy"
             className={compactSelectClass}
