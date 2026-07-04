@@ -494,11 +494,13 @@ function drawCardFace(ctx: CanvasRenderingContext2D, card: string, x: number, y:
   drawRoundedRect(ctx, x, y, width, height, 4, isMajor ? "#1f1b1c" : "#f6e2b7", color, 5);
   ctx.shadowColor = "transparent";
   ctx.fillStyle = color;
+  const cornerBaseline = y + Math.round(width * 0.19);
+  const cornerInset = Math.round(width * 0.09);
   ctx.font = `700 ${Math.round(width * 0.19)}px Georgia`;
-  ctx.fillText(isMajor ? String(decoded.rank) : rankText(decoded.rank), x + 18, y + 46);
+  ctx.fillText(isMajor ? String(decoded.rank) : rankText(decoded.rank), x + cornerInset, cornerBaseline);
   if (!isMajor) {
     const suit = SUITS[decoded.suitIndex];
-    ctx.fillText(suit.symbol, x + width - 52, y + 46);
+    ctx.fillText(suit.symbol, x + width - Math.round(width * 0.26), cornerBaseline);
     ctx.globalAlpha = 0.78;
     ctx.font = `${Math.round(width * 0.18)}px Georgia`;
     const count = Math.min(decoded.rank, 10);
