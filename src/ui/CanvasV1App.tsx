@@ -64,7 +64,7 @@ type BoardGeometry = {
 };
 
 const BOARD_WIDTH = 2868;
-const BOARD_HEIGHT = 2040;
+const BOARD_HEIGHT = 1790;
 const AUTO_MOVE_MS = 360;
 const REDUCED_MOTION_MS = 30;
 const MAJOR_FOUNDATION_BACK_OFFSET = 36;
@@ -326,7 +326,7 @@ function makeGeometry(): BoardGeometry {
   const card = { width: 198, height: 340 };
   const columnGap = 44;
   const startX = 126;
-  const tableauY = 805;
+  const tableauY = 555;
   const columns = Array.from({ length: 11 }, (_, index) => ({
     x: startX + index * (card.width + columnGap),
     y: tableauY,
@@ -335,21 +335,21 @@ function makeGeometry(): BoardGeometry {
   }));
   const minorFoundations = [1900, 2128, 2356, 2584].map((x) => ({
     x,
-    y: 360,
+    y: 110,
     width: card.width,
     height: card.height,
   }));
   return {
     board: { x: 0, y: 0, width: BOARD_WIDTH, height: BOARD_HEIGHT },
-    topBand: { x: 0, y: 250, width: BOARD_WIDTH, height: 520 },
+    topBand: { x: 0, y: 0, width: BOARD_WIDTH, height: 520 },
     tableau: { x: 0, y: tableauY, width: BOARD_WIDTH, height: 1090 },
     card,
     stackOffset: 48,
     columns,
     minorFoundations,
-    park: { x: 2117, y: 430, width: card.height, height: card.width, rotated: true },
-    majorLow: { x: 130, y: 360, width: card.width, height: card.height },
-    majorHigh: { x: 820, y: 360, width: card.width, height: card.height },
+    park: { x: 2117, y: 180, width: card.height, height: card.width, rotated: true },
+    majorLow: { x: 130, y: 110, width: card.width, height: card.height },
+    majorHigh: { x: 820, y: 110, width: card.width, height: card.height },
   };
 }
 
