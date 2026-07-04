@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-07-04T23:38:51.821Z",
+  "options": {
+    "seed": "reference",
+    "attempts": 1000000,
+    "targetCount": 5000,
+    "maxVisited": 250000,
+    "beam": 1000,
+    "trimEvery": 10000,
+    "chunkSize": 100
+  },
+  "workers": 16,
+  "completedChunks": 10000,
+  "totalMs": 12659111,
+  "counters": {
+    "attempts": 1000000,
+    "validationRejected": 618684,
+    "cheapProfileRejected": 28013,
+    "solverAttempts": 353303,
+    "solved": 59262,
+    "unsolved": 294041
+  },
+  "retainedCount": 5000,
+  "bestScore": 0.5396505751053265,
+  "worstRetainedScore": 1.575180829694133
+}

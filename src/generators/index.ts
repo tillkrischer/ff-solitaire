@@ -5,5 +5,6 @@ export { parkLockedMinorCascadeStrategy } from "./parkLockedMinorCascade.ts";
 export { reverseSolveWalkStrategy } from "./reverseSolveWalk.ts";
 export { reverseFoundationDealStrategy } from "./reverseFoundationDeal.ts";
 export { randomReferenceSearchStrategy } from "./randomReferenceSearch.ts";
+export { referencePoolStrategy } from "./referencePool.ts";
 export { inlineTestDealStrategy } from "./inlineTestDeal.ts";
 export { orderedFiveColumnReverseShuffleStrategy } from "./orderedFiveColumnReverseShuffle.ts";

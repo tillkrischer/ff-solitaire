@@ -8,6 +8,7 @@ type ToolbarProps = {
   soundEnabled: boolean;
   isResolving: boolean;
   canUndo: boolean;
+  showStrategySelector: boolean;
   onNewDeal: () => void;
   onSelectedStrategyChange: (strategy: string) => void;
   onUndo: () => void;
@@ -38,6 +39,7 @@ export function Toolbar({
   soundEnabled,
   isResolving,
   canUndo,
+  showStrategySelector,
   onNewDeal,
   onSelectedStrategyChange,
   onUndo,
@@ -52,23 +54,25 @@ export function Toolbar({
       <button className={controlButtonClass} type="button" disabled={isResolving} onClick={onNewDeal}>
         New Deal
       </button>
-      <div className="w-[240px] shrink-0">
-        <select
-          aria-label="Deal strategy"
-          className={compactSelectClass}
-          value={selectedStrategy}
-          disabled={isResolving}
-          onChange={(event) => onSelectedStrategyChange(event.target.value)}
-        >
-          <optgroup label="Deal strategies">
-            {strategies.map((strategy) => (
-              <option key={strategy} value={strategy}>
-                {strategy}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-      </div>
+      {showStrategySelector && (
+        <div className="w-[240px] shrink-0">
+          <select
+            aria-label="Deal strategy"
+            className={compactSelectClass}
+            value={selectedStrategy}
+            disabled={isResolving}
+            onChange={(event) => onSelectedStrategyChange(event.target.value)}
+          >
+            <optgroup label="Deal strategies">
+              {strategies.map((strategy) => (
+                <option key={strategy} value={strategy}>
+                  {strategy}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+      )}
       <button className={controlButtonClass} type="button" disabled={isResolving || !canUndo} onClick={onUndo}>
         Undo
       </button>
