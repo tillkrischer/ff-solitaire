@@ -183,9 +183,9 @@ export function CanvasV1App(): JSX.Element {
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>): void {
+    const point = toBoardPoint(event);
     setDrag((current) => {
       if (!current) return null;
-      const point = toBoardPoint(event);
       return {
         ...current,
         pointer: point,
