@@ -43,7 +43,7 @@ registerStrategy(parkLockedMinorCascadeStrategy);
 registerStrategy(orderedFiveColumnReverseShuffleStrategy);
 // registerStrategy(reverseSolveWalkStrategy);
 registerStrategy(reverseFoundationDealStrategy);
-registerStrategy(randomReferenceSearchStrategy);
+// registerStrategy(randomReferenceSearchStrategy);
 registerStrategy(inlineTestDealStrategy);
 
 export function generateDeal(options: GenerateDealOptions = {}): GenerateDealResult {
