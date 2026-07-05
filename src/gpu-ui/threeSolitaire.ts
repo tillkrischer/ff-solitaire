@@ -11,8 +11,7 @@ import {
   type Move,
   type State,
 } from "../game.ts";
-import { generateDeal } from "../generator.ts";
-const DEFAULT_GENERATION_STRATEGY = "multi-gate-cascade";
+import { DEFAULT_GENERATION_STRATEGY, generateDeal, listGenerationStrategies } from "../generator.ts";
 
 type GameMode = "single-card" | "entire-stack";
 type SourceLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
@@ -50,6 +49,15 @@ type FlyingStack = {
   hiddenSource: { columnIndex: number; startIndex: number; count: number };
   progress: number;
 };
+type ControlAction =
+  | { type: "new-deal" }
+  | { type: "undo" }
+  | { type: "game-mode"; mode: GameMode }
+  | { type: "sound"; enabled: boolean }
+  | { type: "strategy-toggle"; strategy: string }
+  | { type: "strategy-select"; strategy: string };
+type ControlSurface = Rect & { action: ControlAction; disabled?: boolean };
+type ControlLayout = { surfaces: ControlSurface[]; menuRect: Rect | null };
 
 const BOARD_WIDTH = 2868;
 const BOARD_HEIGHT = 1790;
@@ -58,6 +66,7 @@ const MAJOR_FOUNDATION_MAX_BACKS = 7;
 const ANIMATION_MS = 260;
 const REDUCED_MOTION_MS = 30;
 const CARD_MOVE_SOUND_INTERVAL_MS = 55;
+const SELECTED_STRATEGY_STORAGE_KEY = "ff-solitaire:selected-strategy";
 const GAME_MODE_STORAGE_KEY = "ff-solitaire:game-mode";
 const SOUND_ENABLED_STORAGE_KEY = "ff-solitaire:sound-enabled";
 const STACK_STAGGER_CAP_MS = 45;
@@ -114,10 +123,14 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
   private readonly geometry = makeGeometry();
   private readonly resizeObserver: ResizeObserver;
   private readonly audioContext: { current: AudioContext | null } = { current: null };
+  private readonly strategies = listGenerationStrategies();
+  private readonly showStrategySelector = shouldShowStrategySelector();
   private state: State;
   private previousState: State | null = null;
+  private selectedStrategy = getInitialStrategy(this.strategies, this.showStrategySelector);
   private gameMode = getInitialGameMode();
   private soundEnabled = getInitialSoundEnabled();
+  private strategyMenuOpen = false;
   private drag: DragState | null = null;
   private flyingCard: FlyingCard | null = null;
   private flyingStack: FlyingStack | null = null;
@@ -127,7 +140,7 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
 
   constructor(mount: HTMLElement) {
     this.mount = mount;
-    const deal = generateDeal({ strategy: DEFAULT_GENERATION_STRATEGY, seed: Date.now() });
+    const deal = generateDeal({ strategy: this.selectedStrategy, seed: Date.now() });
     this.state = parseBoard(deal.board);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setClearColor(0x21110d, 1);
@@ -191,8 +204,12 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
   };
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
-    if (this.isResolving) return;
     const point = this.toBoardPoint(event);
+    if (this.handleControlPointerDown(point)) {
+      event.preventDefault();
+      return;
+    }
+    if (this.isResolving) return;
     const source = findSourceAtPoint(this.state, this.geometry, point);
     if (!source) return;
     const card = getCardAtSource(this.state, source.location);
@@ -273,6 +290,73 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
     this.flyingCard = null;
     this.flyingStack = null;
     this.draw();
+  }
+
+  private startNewDeal(): void {
+    if (this.isResolving) return;
+    const deal = generateDeal({ strategy: this.selectedStrategy, seed: Date.now() });
+    this.state = parseBoard(deal.board);
+    this.previousState = null;
+    this.drag = null;
+    this.flyingCard = null;
+    this.flyingStack = null;
+    this.strategyMenuOpen = false;
+    this.isResolving = false;
+    this.draw();
+  }
+
+  private handleControlPointerDown(point: { x: number; y: number }): boolean {
+    const layout = getControlLayout(this.strategies, this.showStrategySelector, this.strategyMenuOpen, this.selectedStrategy);
+    const hit = findControlAtPoint(layout, point);
+    if (!hit) {
+      if (this.strategyMenuOpen) {
+        this.strategyMenuOpen = false;
+        this.draw();
+        return true;
+      }
+      return false;
+    }
+    if (hit.disabled || this.isControlActionDisabled(hit.action)) return true;
+    this.applyControlAction(hit.action);
+    return true;
+  }
+
+  private isControlActionDisabled(action: ControlAction): boolean {
+    if (this.isResolving) return true;
+    return action.type === "undo" && !this.previousState;
+  }
+
+  private applyControlAction(action: ControlAction): void {
+    switch (action.type) {
+      case "new-deal":
+        this.startNewDeal();
+        break;
+      case "undo":
+        this.undoMove();
+        break;
+      case "game-mode":
+        this.gameMode = action.mode;
+        writeLocalStorage(GAME_MODE_STORAGE_KEY, action.mode);
+        this.strategyMenuOpen = false;
+        this.draw();
+        break;
+      case "sound":
+        this.soundEnabled = action.enabled;
+        writeLocalStorage(SOUND_ENABLED_STORAGE_KEY, String(action.enabled));
+        this.strategyMenuOpen = false;
+        this.draw();
+        break;
+      case "strategy-toggle":
+        this.strategyMenuOpen = !this.strategyMenuOpen;
+        this.draw();
+        break;
+      case "strategy-select":
+        this.selectedStrategy = action.strategy;
+        writeLocalStorage(SELECTED_STRATEGY_STORAGE_KEY, action.strategy);
+        this.strategyMenuOpen = false;
+        this.draw();
+        break;
+    }
   }
 
   private async resolveEntireStackMove(beforeManualState: State, manualState: State, move: Move): Promise<State> {
@@ -372,6 +456,7 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
     this.geometry.minorFoundations.forEach((rect, index) => this.addCard(`${SUITS[index].code}${this.state.minor[index]}`, rect, 20));
     this.drawPark(hiddenKey, validDrops);
     this.drawTableau(hiddenKey, this.flyingStack?.hiddenSource ?? null, validDrops);
+    this.drawControls();
 
     clearGroup(this.overlayGroup);
     if (this.flyingStack) this.drawFlyingStack(this.flyingStack);
@@ -458,6 +543,18 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
         height: this.geometry.card.height,
       }, 130 + index, true, this.overlayGroup);
     });
+  }
+
+  private drawControls(): void {
+    const layout = getControlLayout(this.strategies, this.showStrategySelector, this.strategyMenuOpen, this.selectedStrategy);
+    for (const surface of layout.surfaces) {
+      const selected = isControlActionSelected(surface.action, this.gameMode, this.soundEnabled, this.selectedStrategy);
+      const disabled = surface.disabled || this.isControlActionDisabled(surface.action);
+      const texture = this.getTexture(controlTextureKey(surface, selected, disabled), () =>
+        createControlTexture(surface, selected, disabled),
+      );
+      this.addPlane(this.boardGroup, texture, surface, controlZ(surface.action), "control");
+    }
   }
 
   private addCard(card: string, rect: VisualRect, z: number, floating = false, group = this.boardGroup): void {
@@ -561,6 +658,166 @@ function makeGeometry(): BoardGeometry {
     majorLow: { x: 130, y: 110, width: card.width, height: card.height },
     majorHigh: { x: 820, y: 110, width: card.width, height: card.height },
   };
+}
+
+function getControlLayout(
+  strategies: string[],
+  showStrategySelector: boolean,
+  strategyMenuOpen: boolean,
+  selectedStrategy: string,
+): ControlLayout {
+  const x = 1120;
+  const y = 112;
+  const height = 72;
+  const gap = 16;
+  const rowGap = 24;
+  const surfaces: ControlSurface[] = [
+    { x, y, width: 190, height, action: { type: "new-deal" } },
+    { x: x + 190 + gap, y, width: 145, height, action: { type: "undo" } },
+  ];
+  const strategyRect = { x: x + 190 + gap + 145 + gap, y, width: 349, height };
+  if (showStrategySelector) surfaces.push({ ...strategyRect, action: { type: "strategy-toggle", strategy: selectedStrategy } });
+
+  const secondY = y + height + rowGap;
+  surfaces.push(
+    { x, y: secondY, width: 210, height, action: { type: "game-mode", mode: "single-card" } },
+    { x: x + 210 + 10, y: secondY, width: 210, height, action: { type: "game-mode", mode: "entire-stack" } },
+    { x: x + 210 + 10 + 210 + 24, y: secondY, width: 130, height, action: { type: "sound", enabled: true } },
+    { x: x + 210 + 10 + 210 + 24 + 130 + 10, y: secondY, width: 130, height, action: { type: "sound", enabled: false } },
+  );
+
+  if (!showStrategySelector || !strategyMenuOpen) return { surfaces, menuRect: null };
+
+  const optionHeight = 38;
+  const menuRect = {
+    x: strategyRect.x,
+    y: strategyRect.y + strategyRect.height + 8,
+    width: strategyRect.width,
+    height: strategies.length * optionHeight,
+  };
+  strategies.forEach((strategy, index) => {
+    surfaces.push({
+      x: menuRect.x,
+      y: menuRect.y + index * optionHeight,
+      width: menuRect.width,
+      height: optionHeight,
+      action: { type: "strategy-select", strategy },
+    });
+  });
+  return { surfaces, menuRect };
+}
+
+function findControlAtPoint(layout: ControlLayout, point: { x: number; y: number }): ControlSurface | null {
+  for (let index = layout.surfaces.length - 1; index >= 0; index--) {
+    const surface = layout.surfaces[index];
+    if (contains(surface, point)) return surface;
+  }
+  return null;
+}
+
+function isControlActionSelected(
+  action: ControlAction,
+  gameMode: GameMode,
+  soundEnabled: boolean,
+  selectedStrategy: string,
+): boolean {
+  if (action.type === "game-mode") return action.mode === gameMode;
+  if (action.type === "sound") return action.enabled === soundEnabled;
+  if (action.type === "strategy-select") return action.strategy === selectedStrategy;
+  return false;
+}
+
+function controlZ(action: ControlAction): number {
+  return action.type === "strategy-select" ? 105 : 80;
+}
+
+function controlTextureKey(surface: ControlSurface, selected: boolean, disabled: boolean): string {
+  return [
+    "control",
+    surface.width,
+    surface.height,
+    actionLabel(surface.action),
+    selected ? "selected" : "idle",
+    disabled ? "disabled" : "enabled",
+  ].join(":");
+}
+
+function createControlTexture(surface: ControlSurface, selected: boolean, disabled: boolean): HTMLCanvasElement {
+  const canvas = createCanvas(surface.width, surface.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+  const isOption = surface.action.type === "strategy-select";
+  const fill = selected ? "#7b2f1d" : isOption ? "#321813" : "#3b0b14";
+  const stroke = selected ? "#ffe0a3" : "#c18443";
+  const textColor = disabled ? "rgba(255, 216, 155, 0.42)" : selected ? "#fff0c3" : "#ffd99b";
+  ctx.globalAlpha = disabled ? 0.56 : 1;
+  drawRoundedRect(ctx, 1, 1, surface.width - 2, surface.height - 2, 6, fill, stroke, 4);
+  ctx.globalAlpha = 1;
+  if (surface.action.type === "strategy-toggle") {
+    drawControlCaption(ctx, "Deal", 18, 23, disabled);
+    drawFitText(ctx, actionLabel(surface.action), 18, 53, surface.width - 44, 24, textColor, 700);
+    ctx.fillStyle = textColor;
+    ctx.font = "700 24px Georgia";
+    ctx.textAlign = "right";
+    ctx.fillText("v", surface.width - 18, 48);
+    ctx.textAlign = "start";
+    return canvas;
+  }
+  if (surface.action.type === "game-mode") drawControlCaption(ctx, "Move", 18, 23, disabled);
+  if (surface.action.type === "sound") drawControlCaption(ctx, "Sound", 18, 23, disabled);
+  const baseline = surface.action.type === "strategy-select" ? Math.round(surface.height / 2 + 9) : 53;
+  const maxSize = surface.action.type === "strategy-select" ? 20 : 28;
+  drawFitText(ctx, actionLabel(surface.action), 18, baseline, surface.width - 36, maxSize, textColor, 800);
+  return canvas;
+}
+
+function actionLabel(action: ControlAction): string {
+  switch (action.type) {
+    case "new-deal":
+      return "New Deal";
+    case "undo":
+      return "Undo";
+    case "game-mode":
+      return action.mode === "single-card" ? "Single" : "Stack";
+    case "sound":
+      return action.enabled ? "On" : "Off";
+    case "strategy-toggle":
+      return action.strategy;
+    case "strategy-select":
+      return action.strategy;
+  }
+}
+
+function drawControlCaption(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  disabled: boolean,
+): void {
+  ctx.fillStyle = disabled ? "rgba(242, 195, 137, 0.42)" : "#f2c389";
+  ctx.font = "700 16px Georgia";
+  ctx.fillText(text.toUpperCase(), x, y);
+}
+
+function drawFitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  baseline: number,
+  maxWidth: number,
+  maxSize: number,
+  color: string,
+  weight: number,
+): void {
+  let size = maxSize;
+  ctx.font = `${weight} ${size}px Georgia`;
+  while (size > 12 && ctx.measureText(text).width > maxWidth) {
+    size -= 1;
+    ctx.font = `${weight} ${size}px Georgia`;
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, baseline);
 }
 
 function getColumnCardRect(geometry: BoardGeometry, columnIndex: number, cardIndex: number): VisualRect {
@@ -925,6 +1182,24 @@ function readLocalStorage(key: string): string | null {
   } catch {
     return null;
   }
+}
+
+function writeLocalStorage(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Preference persistence should not block gameplay.
+  }
+}
+
+function getInitialStrategy(strategies: string[], showStrategySelector: boolean): string {
+  if (!showStrategySelector) return DEFAULT_GENERATION_STRATEGY;
+  const storedStrategy = readLocalStorage(SELECTED_STRATEGY_STORAGE_KEY);
+  return storedStrategy && strategies.includes(storedStrategy) ? storedStrategy : DEFAULT_GENERATION_STRATEGY;
+}
+
+function shouldShowStrategySelector(): boolean {
+  return import.meta.env.DEV || import.meta.env.VITE_SHOW_STRATEGY_SELECTOR === "true";
 }
 
 function getInitialGameMode(): GameMode {
