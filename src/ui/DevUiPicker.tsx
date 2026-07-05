@@ -12,6 +12,12 @@ const UI_EXPERIMENTS: UiExperiment[] = [
     path: "canvas",
     status: "Current",
   },
+  {
+    name: "Three.js GPU UI",
+    description: "A GPU-rendered clone of the board canvas without the toolbar.",
+    path: "three",
+    status: "Experiment",
+  },
 ];
 
 function getExperimentHref(path: string): string {

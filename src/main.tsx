@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { GpuThreeApp } from "./gpu-ui/GpuThreeApp.tsx";
 import { CanvasV1App } from "./ui/CanvasV1App.tsx";
 import { DevUiPicker } from "./ui/DevUiPicker.tsx";
 import "./ui/styles.css";
@@ -11,6 +12,7 @@ function getDevRoute(): JSX.Element {
   const route = relativePath.replace(/^\/+|\/+$/g, "");
 
   if (route === "canvas") return <CanvasV1App />;
+  if (route === "three") return <GpuThreeApp />;
   return <DevUiPicker />;
 }
 
