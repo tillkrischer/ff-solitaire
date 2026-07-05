@@ -11,7 +11,8 @@ import {
   type Move,
   type State,
 } from "../game.ts";
-import { DEFAULT_GENERATION_STRATEGY, generateDeal } from "../generator.ts";
+import { generateDeal } from "../generator.ts";
+const DEFAULT_GENERATION_STRATEGY = "multi-gate-cascade";
 
 type GameMode = "single-card" | "entire-stack";
 type SourceLocation = { type: "column"; index: number } | { type: "park"; index: 0 };
@@ -297,8 +298,10 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
       this.state = current;
       this.playCardMoveSound();
       lastSource = nextMove.from;
-      if (!findNextAutoMove(current)) this.flyingCard = null;
-      this.draw();
+      if (!findNextAutoMove(current)) {
+        this.flyingCard = null;
+        this.draw();
+      }
     }
   }
 
@@ -311,6 +314,8 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
       return;
     }
     const initial: FlyingCard = { card: move.card, from, to, hiddenSource: move.from, progress: 0 };
+    this.flyingCard = initial;
+    this.draw();
     await this.animate(durationMs, (progress) => {
       this.flyingCard = { ...initial, progress: easeInOutCubic(progress) };
       this.draw();
@@ -332,6 +337,8 @@ class ThreeSolitaireRuntime implements ThreeSolitaireApp {
       hiddenSource: { columnIndex: move.fromIndex, startIndex: sourceStartIndex, count: move.cards.length },
       progress: 0,
     };
+    this.flyingStack = initial;
+    this.draw();
     await this.animate(durationMs + STACK_STAGGER_CAP_MS, (progress) => {
       this.flyingStack = { ...initial, progress: easeInOutCubic(progress) };
       this.draw();
