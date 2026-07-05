@@ -675,7 +675,7 @@ function getControlLayout(
     { x, y, width: 190, height, action: { type: "new-deal" } },
     { x: x + 190 + gap, y, width: 145, height, action: { type: "undo" } },
   ];
-  const strategyRect = { x: x + 190 + gap + 145 + gap, y, width: 349, height };
+  const strategyRect = { x: x + 190 + gap + 145 + gap, y, width: 357, height };
   if (showStrategySelector) surfaces.push({ ...strategyRect, action: { type: "strategy-toggle", strategy: selectedStrategy } });
 
   const secondY = y + height + rowGap;
